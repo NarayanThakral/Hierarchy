@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Hierarchy Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-blue: #0d2344;
+            --accent-cyan: #00bcf2;
+            --light-gray: #f8f9fa;
+            --medium-gray: #e9ecef;
+            --dark-gray: #495057;
+            --text-color: #212529;
+            --white: #ffffff;
+            --border-radius: 6px;
+            --highlight-bg: #e0f7ff;
+            --success-bg: #d4edda;
+            --success-border: #28a745;
+            --added-bg: #d4edda;
+            --removed-bg: #f8d7da;
+            --added-border: #28a745;
+            --removed-border: #dc3545;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            padding: 2rem; 
+            background-color: var(--light-gray); 
+            color: var(--text-color); 
+        }
+
+        .container { 
+            max-width: 900px; 
+            margin: auto; 
+            background: var(--white); 
+            padding: 2rem 2.5rem; 
+            border-radius: var(--border-radius); 
+            box-shadow: 0 8px 30px rgba(0,0,0,0.08); 
+        }
+
+        h1 { 
+            color: var(--primary-blue); 
+            text-align: center;
+            font-weight: 700;
+        }
+
+        h2 { 
+            color: var(--primary-blue); 
+            font-weight: 600;
+            margin-top: 2rem;
+        }
+
+        p { 
+            text-align: center; 
+            color: var(--dark-gray); 
+            margin-bottom: 2.5rem; 
+        }
+
+        .input-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        #entityName, #projectName {
+            grid-column: 1 / -1;
+        }
+        
+        #entityLocation {
+             grid-column: 1 / -1;
+        }
+
+        .input-group { 
+            display: flex; 
+            flex-wrap: wrap;
+            gap: 1rem; 
+            margin-bottom: 1.5rem; 
+        }
+
+        input[type="text"], textarea { 
+            flex: 1 1 200px;
+            padding: 0.75rem 1rem; 
+            border: 1px solid #ced4da; 
+            border-radius: var(--border-radius); 
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(0, 188, 242, 0.2);
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button, .button {
+            flex-basis: 100%;
+            padding: 0.75rem 1.5rem; 
+            border: none; 
+            background-color: var(--accent-cyan); 
+            color: var(--white); 
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: var(--border-radius); 
+            cursor: pointer; 
+            transition: background-color 0.3s, transform 0.1s;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        @media (min-width: 768px) {
+            button, .button {
+                flex-basis: auto;
+            }
+        }
+
+        button:hover, .button:hover { 
+            background-color: #00a8d9;
+        }
+        button:active, .button:active {
+            transform: translateY(1px);
+        }
+        button:disabled {
+            background-color: #a0a0a0;
+            cursor: not-allowed;
+        }
+
+        #results, #tree-container { 
+            margin-top: 1rem; 
+            overflow-x: auto; 
+        }
+        
+        #status-bar {
+            background-color: var(--medium-gray);
+            padding: 0.5rem 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            font-size: 0.9em;
+            text-align: center;
+            display: none;
+            word-wrap: break-word;
+        }
+
+        .loader { 
+            text-align: center; 
+            font-style: italic; 
+            color: var(--dark-gray); 
+            display: none; 
+            margin-bottom: 1rem; 
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 1em; 
+            font-size: 0.95em; 
+        }
+
+        th, td { 
+            border: 1px solid var(--medium-gray); 
+            padding: 12px 15px; 
+            text-align: left; 
+            vertical-align: top; 
+        }
+
+        thead th { 
+            background-color: var(--accent-cyan); 
+            color: var(--white); 
+            font-weight: 600; 
+            position: sticky; 
+            top: 0; 
+        }
+
+        tbody tr:nth-child(even) { 
+            background-color: var(--light-gray); 
+        }
+        tbody tr:hover { 
+            background-color: #e0f7ff;
+        }
+
+        .error-message, .success-message, .info-message {
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            position: relative;
+            opacity: 0;
+            animation: fadeIn 0.5s ease-in forwards;
+        }
+
+        .error-message { 
+            color: #D32F2F; 
+            background-color: #FFEBEE; 
+            border: 1px solid #D32F2F; 
+            white-space: pre-wrap; 
+            word-wrap: break-word;
+        }
+        
+        .success-message {
+            color: #155724;
+            background-color: var(--success-bg);
+            border: 1px solid var(--success-border);
+        }
+        
+        .info-message {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+        }
+
+        .dismiss-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: inherit;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        .dismiss-btn:hover {
+            opacity: 0.7;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .view-toggle {
+            text-align: center;
+            margin-bottom: 1rem;
+            display: none;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+        .view-toggle button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            background-color: transparent;
+            color: var(--primary-blue);
+            border: 1px solid var(--medium-gray);
+            margin: 5px;
+            border-radius: var(--border-radius);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .view-toggle button:hover {
+            background-color: var(--medium-gray);
+        }
+        .view-toggle button.active { 
+            background-color: var(--primary-blue); 
+            color: var(--white); 
+            border-color: var(--primary-blue);
+        }
+        
+        #downloadBtn {
+            line-height: 0;
+            padding: 0.6rem;
+        }
+        #downloadBtn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+        }
+        
+        #tree-container { font-size: 0.95em; }
+        #tree-container ul { list-style-type: none; padding-left: 20px; position: relative; }
+        #tree-container ul ul { margin-left: 15px; }
+        #tree-container li { margin: 10px 0; position: relative; padding-left: 25px; }
+        #tree-container li::before, #tree-container li::after { content: ''; position: absolute; left: 0; border-color: var(--medium-gray); }
+        #tree-container li::before { border-left: 1px solid var(--medium-gray); height: 100%; top: 0; width: 1px; }
+        #tree-container li:last-child::before { height: 22px; }
+        #tree-container li::after { border-top: 1px solid var(--medium-gray); height: 1px; top: 22px; width: 20px; }
+        .tree-node { background-color: #f8f9fa; padding: 8px 12px; border-radius: var(--border-radius); border: 1px solid var(--medium-gray); display: inline-block; transition: all 0.2s; }
+        .tree-node strong { color: var(--primary-blue); font-weight: 600; }
+        .tree-node .badge { background-color: var(--accent-cyan); color: var(--white); padding: 3px 8px; font-size: 0.75em; border-radius: 10px; font-weight: bold; display: inline-block; margin-left: 8px; vertical-align: middle; }
+        .tree-node .tree-location { display: block; font-style: italic; color: var(--dark-gray); font-size: 0.9em; margin-top: 4px; }
+        
+        .highlighted-row { background-color: var(--highlight-bg) !important; font-weight: 700; }
+        .highlighted-row td { color: var(--primary-blue); }
+        .highlighted-node { border-color: var(--primary-blue) !important; background-color: var(--highlight-bg) !important; box-shadow: 0 0 8px rgba(13, 35, 68, 0.3); border-width: 2px; }
+
+        #feedback-section { margin-top: 2rem; display: none; }
+        #existing-project-dialog { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .dialog-content { 
+            background: var(--white); 
+            padding: 2rem; 
+            border-radius: var(--border-radius); 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+            text-align: center; 
+            max-width: 500px; 
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .dialog-content h2 { margin-top: 0; }
+        .dialog-buttons { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; }
+
+        .added-row {
+            background-color: var(--added-bg) !important;
+            border-left: 3px solid var(--added-border);
+        }
+
+        .removed-row {
+            background-color: var(--removed-bg) !important;
+            border-left: 3px solid var(--removed-border);
+            text-decoration: line-through;
+        }
+
+        .added-node {
+            background-color: var(--added-bg) !important;
+            border: 2px solid var(--added-border) !important;
+        }
+
+        .removed-node {
+            background-color: var(--removed-bg) !important;
+            border: 2px solid var(--removed-border) !important;
+            text-decoration: line-through;
+        }
+
+        /* M&A highlight styles */
+        .ma-highlighted-row {
+            background-color: #fff3cd !important;
+            border-left: 3px solid #ffc107;
+        }
+        .ma-highlighted-node {
+            background-color: #fff3cd !important;
+            border: 2px solid #ffc107 !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🏢 Company Hierarchy Generator</h1>
+        <p>Enter an entity and a project name to begin. Location is optional but recommended for accuracy.</p>
+        
+        <div class="input-grid">
+            <input type="text" id="entityName" placeholder="Entity Name (e.g., Google India) *">
+            <input type="text" id="projectName" placeholder="Project Name (e.g., Q1 Expansion) *">
+            <input type="text" id="entityLocation" placeholder="Location (e.g., Bengaluru, India) - Optional">
+        </div>
+        <div class="input-group">
+             <button id="generateBtn">Generate or Load Hierarchy</button>
+             <button id="showAllHierarchiesBtn" type="button">Show All Hierarchies</button>
+        </div>
+
+        <div id="loader" class="loader">Loading...</div>
+
+        <div id="status-bar"></div>
+        
+        <div class="view-toggle">
+            <button id="tableViewBtn" class="active">Table View</button>
+            <button id="treeViewBtn">Tree View</button>
+            <button id="downloadBtn" title="Download CSV">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            </button>
+            <button id="approveBtn" title="Approve Hierarchy" style="display: none;">Approve</button>
+        </div>
+
+        <div id="results">
+            <div id="messageContainer" class="messageContainer"></div>
+            <div id="tableContainer"></div>
+        </div>
+        <div id="tree-container" style="display: none;">
+            <div id="messageContainer2" class="messageContainer"></div>
+            <div id="treeContent"></div>
+        </div>
+
+        <div id="feedback-section">
+            <h2>Provide Feedback</h2>
+            <p>Enter feedback to refine the hierarchy. Each submission creates a new version for this project.</p>
+            <div class="input-group">
+                <textarea id="feedbackInput" placeholder="Enter your feedback (e.g., 'Add all Amazon companies in Spain')"></textarea>
+            </div>
+            <div class="input-group">
+                <button id="submitFeedbackBtn">Submit New Version</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="existing-project-dialog">
+        <div class="dialog-content">
+            <button class="dialog-close" style="position:absolute;top:10px;right:10px;font-size:1.5rem;background:none;border:none;cursor:pointer;" onclick="document.getElementById('existing-project-dialog').style.display='none'">✕</button>
+            <h2>Project Exists</h2>
+            <p>A project with this name already exists. Would you like to load the latest version or create a new one (which will archive the old draft)?</p>
+            <div class="dialog-buttons">
+                <button id="loadProjectBtn" class="button">Load Previous Versions</button>
+                <button id="createNewVersionBtn" class="button">Create New</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        const API_KEY = "AIzaSyDA4wNR6GaAxrOqATPnh2mO4gpZuItUOEwd"; // Ensure this matches your actual API key
+        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+        const GEMINI_NEWS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        const BACKEND_URL = 'http://54.84.76.100:5002';
+        
+        let hierarchyData = [];
+        let initialHierarchyData = [];
+        let entityName = '';
+        let entityLocation = '';
+        let projectName = '';
+        let l0CompanyName = '';
+        let mergerNews = '';
+        let maEntities = [];
+        // const DEBUG = true; // Set to false to hide debug panel
+        // let debugLogs = [];
+
+        let currentHierarchyId = null; 
+        let currentVersionNumber = 0;
+        let isHierarchyApproved = false;
+        let isHierarchyArchived = false;
+
+        const loader = document.getElementById('loader');
+        const generateBtn = document.getElementById('generateBtn');
+        const feedbackSection = document.getElementById('feedback-section');
+        const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
+        const approveBtn = document.getElementById('approveBtn');
+        const viewToggle = document.querySelector('.view-toggle');
+        const statusBar = document.getElementById('status-bar');
+        const tableContainer = document.getElementById('tableContainer');
+        const treeContent = document.getElementById('treeContent');
+        const messageContainers = document.getElementsByClassName('messageContainer');
+
+        function displayMessage(message, type = 'info', container) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `${type}-message`;
+            messageDiv.innerHTML = `<strong>${type.charAt(0).toUpperCase() + type.slice(1)}:</strong> ${message}<button class="dismiss-btn" onclick="this.parentElement.remove()">✕</button>`;
+            
+            const containers = container ? [container] : Array.from(messageContainers);
+            containers.forEach(c => {
+                c.innerHTML = '';
+                c.appendChild(messageDiv.cloneNode(true));
+            });
+        }
+        
+        function displayError(message, context = '') {
+            displayMessage(message, 'error');
+            console.error(`Error displayed in UI: ${message}`, context ? { context } : {});
+        }
+
+        function displaySuccess(message) {
+            displayMessage(message, 'success');
+        }
+
+        window.onerror = function (message, source, lineno, colno, error) {
+            displayError(`An unexpected error occurred: ${message} at ${source}:${lineno}:${colno}`, error);
+            return true;
+        };
+        window.addEventListener('unhandledrejection', function (event) {
+            const reason = event.reason;
+            displayError(`An unhandled promise rejection occurred: ${reason.message || reason}`, reason.stack || reason);
+            event.preventDefault();
+        });
+
+        function resetUI(enableGenerate = true) {
+            loader.style.display = 'none';
+            viewToggle.style.display = 'none';
+            feedbackSection.style.display = 'none';
+            approveBtn.style.display = 'none';
+            statusBar.style.display = 'none';
+            tableContainer.innerHTML = '';
+            treeContent.innerHTML = '';
+            Array.from(messageContainers).forEach(c => c.innerHTML = '');
+            generateBtn.disabled = !enableGenerate;
+            approveBtn.disabled = false;
+            submitFeedbackBtn.disabled = false;
+        }
+
+        function updateUIForHierarchy() {
+            renderGroupedTable(tableContainer);
+            renderTree(hierarchyData, treeContent);
+            viewToggle.style.display = 'flex';
+            const statusText = `Project: ${projectName} | Status: ${isHierarchyArchived ? 'Archived' : isHierarchyApproved ? 'Approved' : 'In Draft'} (Version ${currentVersionNumber}) | ID: ${currentHierarchyId}`;
+            statusBar.textContent = statusText;
+            statusBar.style.display = 'block';
+            if (isHierarchyApproved || isHierarchyArchived) {
+                feedbackSection.style.display = 'none';
+                approveBtn.style.display = 'none';
+                displaySuccess(`Viewing a ${isHierarchyArchived ? 'archived' : 'approved'} hierarchy. To make changes, start a new generation.`);
+            } else {
+                feedbackSection.style.display = 'block';
+                approveBtn.style.display = 'inline-block';
+            }
+        }
+
+        function compareHierarchies(oldData, newData) {
+            const oldEntities = new Map(oldData.map(item => [JSON.stringify({ name: item.entityName, level: item.level, location: item.location }), item]));
+            const newEntities = new Map(newData.map(item => [JSON.stringify({ name: item.entityName, level: item.level, location: item.location }), item]));
+            
+            const added = [];
+            const removed = [];
+            const unchanged = [];
+
+            newData.forEach(item => {
+                const key = JSON.stringify({ name: item.entityName, level: item.level, location: item.location });
+                if (!oldEntities.has(key)) {
+                    added.push({ ...item, changeType: 'added' });
+                } else {
+                    unchanged.push({ ...item });
+                }
+            });
+
+            oldData.forEach(item => {
+                const key = JSON.stringify({ name: item.entityName, level: item.level, location: item.location });
+                if (!newEntities.has(key)) {
+                    removed.push({ ...item, changeType: 'removed' });
+                }
+            });
+
+            return [...unchanged, ...added, ...removed];
+        }
+
+        function renderGroupedTable(targetElement) {
+            targetElement.innerHTML = '';
+            if (!Array.isArray(hierarchyData) || hierarchyData.length === 0) { 
+                targetElement.innerHTML = "<p>No hierarchy data to display.</p>";
+                return; 
+            }
+            
+            const table = document.createElement('table');
+            const thead = document.createElement('thead');
+            const tbody = document.createElement('tbody');
+            thead.innerHTML = '<tr><th>Level</th><th>Entity Name</th><th>Location</th><th>Mapped Parent</th></tr>';
+            table.appendChild(thead);
+            
+            const sortedData = [...hierarchyData].sort((a, b) => {
+                const levelA = parseInt(a.level.substring(1));
+                const levelB = parseInt(b.level.substring(1));
+                if (levelA !== levelB) return levelA - levelB;
+                return a.entityName.localeCompare(b.entityName);
+            });
+
+            sortedData.forEach(rowData => {
+                const tr = document.createElement('tr');
+                if (rowData.highlight) {
+                    tr.classList.add('highlighted-row');
+                }
+                if (rowData.isMA) {
+                    tr.classList.add('ma-highlighted-row');
+                }
+                if (rowData.changeType === 'added') {
+                    tr.classList.add('added-row');
+                } else if (rowData.changeType === 'removed') {
+                    tr.classList.add('removed-row');
+                }
+                tr.innerHTML = `
+                    <td>${rowData.level || ''}</td>
+                    <td>${rowData.entityName || ''}</td>
+                    <td>${rowData.location || ''}</td>
+                    <td>${rowData.mappedParent || ''}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(tbody);
+            targetElement.appendChild(table);
+        }
+
+        function renderTree(data, targetElement) {
+            targetElement.innerHTML = '';
+            if (!Array.isArray(data) || data.length === 0) return;
+
+            const dataMap = new Map();
+            data.forEach(item => dataMap.set(`${item.entityName} (${item.level})`, { ...item, children: [] }));
+
+            const treeRoots = [];
+            dataMap.forEach(item => {
+                if (item.mappedParent && dataMap.has(item.mappedParent)) {
+                    dataMap.get(item.mappedParent).children.push(item);
+                } else {
+                    treeRoots.push(item);
+                }
+            });
+
+            function createTreeHtml(nodes) {
+                if (!nodes || nodes.length === 0) return '';
+                let html = '<ul>';
+                nodes.sort((a, b) => a.entityName.localeCompare(b.entityName)).forEach(node => {
+                    const nodeClasses = [
+                        'tree-node',
+                        node.highlight ? 'highlighted-node' : '',
+                        node.isMA ? 'ma-highlighted-node' : '',
+                        node.changeType === 'added' ? 'added-node' : '',
+                        node.changeType === 'removed' ? 'removed-node' : ''
+                    ].filter(Boolean).join(' ');
+                    
+                    html += `
+                        <li>
+                            <div class="${nodeClasses}">
+                                <strong>${node.entityName}</strong><span class="badge">${node.level}</span>
+                                <span class="tree-location">${node.location}</span>
+                            </div>
+                            ${createTreeHtml(node.children)}
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                return html;
+            }
+            targetElement.innerHTML = createTreeHtml(treeRoots);
+        }
+
+        async function fuzzyEntitySearch(entityName) {
+            const url = `${BACKEND_URL}/api/hierarchies/fuzzy-entity-search?entity=${encodeURIComponent(entityName)}`;
+            const response = await fetch(url);
+            if (!response.ok) return [];
+            return await response.json();
+        }
+
+        function showFuzzyMatchDialog(fuzzyResults) {
+            const dialog = document.getElementById('existing-project-dialog');
+            const dialogContent = dialog.querySelector('.dialog-content');
+            dialog.style.display = 'flex';
+            generateBtn.disabled = false;
+            const grouped = {};
+            fuzzyResults.forEach(result => {
+                const meta = result.metadata;
+                if (meta.status === 'archived') return;
+                const key = (meta.project_name || '') + '|' + (meta.user_input.company || '');
+                if (!grouped[key] || meta.version_number > grouped[key].metadata.version_number) {
+                    grouped[key] = result;
+                }
+            });
+            const displayResults = Object.values(grouped);
+            let html = `<button class="dialog-close" style="position:absolute;top:10px;right:10px;font-size:1.5rem;background:none;border:none;cursor:pointer;" id="closeFuzzyDialogBtn">✕</button>`;
+            html += `<h2>Similar Entity Found</h2><p>We found your entity in the following hierarchies. You can load the latest version or create a new hierarchy.</p>`;
+            html += '<div style="max-height:300px;overflow:auto;">';
+            displayResults.forEach((result, idx) => {
+                const meta = result.metadata;
+                const matches = result.matches.slice(0, 3).map(m => `${m.entity.entityName} (${m.entity.level}, ${m.entity.location})`).join(', ');
+                const moreMatches = result.matches.length > 3 ? ` (+${result.matches.length - 3} more)` : '';
+                let statusColor = '#888';
+                if (meta.status === 'approved') statusColor = '#28a745';
+                else if (meta.status === 'in-draft') statusColor = '#00bcf2';
+                else if (meta.status === 'archived') statusColor = '#b0b0b0';
+                html += `<div style="border:1px solid #e9ecef;border-radius:8px;padding:1rem;margin-bottom:1rem;background:#f8f9fa;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <div style="font-weight:600;font-size:1.1em;">${meta.project_name || 'N/A'}</div>
+                        <span style="background:${statusColor};color:#fff;padding:0.2em 0.8em;border-radius:12px;font-size:0.95em;">${meta.status.charAt(0).toUpperCase() + meta.status.slice(1)} v${meta.version_number}</span>
+                    </div>
+                    <div style="margin:0.3em 0 0.2em 0;"><strong>Company:</strong> ${meta.user_input.company || 'N/A'}</div>
+                    <div style="margin-bottom:0.2em;"><strong>Location:</strong> ${meta.user_input.location || 'N/A'}</div>
+                    <div style="margin-bottom:0.2em;"><strong>Last Updated:</strong> ${meta.updated_at ? new Date(meta.updated_at).toLocaleString() : '-'}</div>
+                    <div style="margin-bottom:0.2em;"><strong>Matched Entities:</strong> ${matches}${moreMatches}</div>
+                    <div style="display:flex;gap:0.5em;margin-top:0.7em;">
+                        <button class='button' style='flex:1;' onclick='window.location.href="index.html?hierarchyId=${meta.id}&status=${meta.status}"'>Load Latest</button>
+                        <button class='button' style='flex:1;background:#e9ecef;color:#0d2344;' onclick='window.location.href="all_hierarchies.html?company=${encodeURIComponent(meta.user_input.company)}"'>View All Versions</button>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+            html += `<div class='dialog-buttons'><button id='createNewVersionBtn' class='button'>Create New Hierarchy</button></div>`;
+            dialogContent.innerHTML = html;
+            document.getElementById('createNewVersionBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+                generateAndSaveInitialVersion(true);
+            };
+            document.getElementById('closeFuzzyDialogBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+            };
+        }
+
+        async function getCompanyHierarchy() {
+            entityName = document.getElementById('entityName').value.trim();
+            entityLocation = document.getElementById('entityLocation').value.trim();
+            projectName = document.getElementById('projectName').value.trim();
+            if (!entityName || !projectName) {
+                displayError("Please enter both an Entity Name and a Project Name.");
+                return;
+            }
+            resetUI(false);
+            loader.style.display = 'block';
+            try {
+                loader.textContent = 'Searching for similar entities in all hierarchies...';
+                const fuzzyResults = await fuzzyEntitySearch(entityName);
+                if (fuzzyResults.length > 0) {
+                    loader.style.display = 'none';
+                    showFuzzyMatchDialog(fuzzyResults);
+                    return;
+                }
+
+                loader.textContent = 'Checking for existing project...';
+                let checkUrl = `${BACKEND_URL}/api/hierarchies/check-project?company=${encodeURIComponent(entityName)}&project=${encodeURIComponent(projectName)}`;
+                if (entityLocation) {
+                    checkUrl += `&location=${encodeURIComponent(entityLocation)}`;
+                }
+
+                const response = await fetch(checkUrl);
+                
+                if (response.ok) {
+                    const project = await response.json();
+                    loader.style.display = 'none';
+                    showExistingProjectDialog(project.id);
+                } else if (response.status === 404) {
+                    loader.style.display = 'none';
+                    generateAndSaveInitialVersion(true);
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Server error checking for project.');
+                }
+
+            } catch(error) {
+                displayError(`Failed to check for existing project: ${error.message}.`);
+                resetUI();
+            }
+        }
+        
+        function showExistingProjectDialog(hierarchyId) {
+            const dialog = document.getElementById('existing-project-dialog');
+            dialog.style.display = 'flex';
+            generateBtn.disabled = false;
+            const loadBtn = document.getElementById('loadProjectBtn');
+            loadBtn.textContent = 'Load Previous Versions';
+            loadBtn.onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+                const company = document.getElementById('entityName').value.trim();
+                window.location.href = `all_hierarchies.html?company=${encodeURIComponent(company)}`;
+            };
+            document.getElementById('createNewVersionBtn').onclick = () => {
+                dialog.style.display = 'none';
+                generateBtn.disabled = false;
+                generateAndSaveInitialVersion(true);
+            };
+            const closeBtn = document.querySelector('#existing-project-dialog .dialog-close');
+            if (closeBtn) {
+                closeBtn.onclick = () => {
+                    dialog.style.display = 'none';
+                    generateBtn.disabled = false;
+                };
+            }
+        }
+        
+        async function loadHierarchy(hierarchyId) {
+            try {
+                resetUI(false);
+                loader.style.display = 'block';
+                loader.textContent = 'Loading hierarchy...';
+                
+                const response = await fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}`);
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to fetch hierarchy data.');
+                }
+                const result = await response.json();
+                
+                hierarchyData = result.data[0].data;
+                initialHierarchyData = [...hierarchyData];
+                currentHierarchyId = result.metadata.id;
+                currentVersionNumber = result.metadata.version_number;
+                isHierarchyApproved = result.metadata.status === 'approved';
+                isHierarchyArchived = result.metadata.status === 'archived';
+                projectName = result.metadata.project_name;
+                
+                document.getElementById('entityName').value = result.metadata.user_input.company;
+                document.getElementById('entityLocation').value = result.metadata.user_input.location || '';
+                document.getElementById('projectName').value = projectName;
+
+                resetUI();
+                updateUIForHierarchy();
+                displaySuccess(`Loaded project "${projectName}" (v${currentVersionNumber}).`);
+
+            } catch (error) {
+                displayError(`Failed to load hierarchy: ${error.message}`);
+                resetUI();
+            }
+        }
+
+        async function fetchMergerNews(companyName) {
+            const today = new Date().toISOString().split('T')[0];
+            let newsPrompt = `
+                You are a financial data extractor. Your task is to use Google Search to find the most recent and complete list of mergers and acquisitions involving ${companyName} (as acquirer or target) from its founding up to ${today}.
+                - Do NOT rely only on your training data. Use only information from the search results.
+                - For each event, provide: [Company Name] - [Location if available].
+                - If you find fewer than 5 events, try searching again with different keywords (e.g., '${companyName} acquisition list', '${companyName} M&A history', '${companyName} acquired companies').
+                - If no events are found, state 'No known M&A activity as of ${today}'.
+                - Be exhaustive and up-to-date.
+                - STRICT OUTPUT FORMAT: Return ONLY a simple list with no additional text, explanations, or commentary.
+                - IMPORTANT: For each company you extract, you will later be asked to add a boolean property 'isMA: true' to the corresponding entity in the hierarchy JSON.
+`;
+            try {
+                let response = await fetch(GEMINI_NEWS_API_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: newsPrompt }] }],
+                        tools: [{ google_search_retrieval: {} }],
+                        generationConfig: {
+                            responseMimeType: "text/plain",
+                            temperature: 0.0,
+                            maxOutputTokens: 16384,
+                        }
+                    })
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Gemini API request for news failed: ${errorText}`);
+                }
+                let data = await response.json();
+                let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                // If fewer than 5 events, retry with a different search phrase
+                const lines = text.split('\n').filter(line => line.trim().startsWith('- '));
+                if (lines.length < 5) {
+                    const retryPrompt = `
+You are a financial data extractor. Use Google Search to find ALL mergers and acquisitions involving ${companyName} (as acquirer or target) from its founding up to ${today}. Use the search term: '${companyName} acquired companies list'.
+- For each event, provide: [Company Name] - [ACQUIRED/MERGED] - [Year if available] - [Source URL or headline if possible].
+- STRICT OUTPUT FORMAT: Return ONLY a simple list with no additional text, explanations, or commentary.
+`;
+                    response = await fetch(GEMINI_NEWS_API_URL, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: retryPrompt }] }],
+                            tools: [{ google_search_retrieval: {} }],
+                            generationConfig: {
+                                responseMimeType: "text/plain",
+                                temperature: 0.0,
+                                maxOutputTokens: 16384,
+                            }
+                        })
+                    });
+                    if (response.ok) {
+                        data = await response.json();
+                        const retryText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        // If retry yields more results, use it
+                        const retryLines = retryText.split('\n').filter(line => line.trim().startsWith('- '));
+                        if (retryLines.length > lines.length) {
+                            text = retryText;
+                        }
+                    }
+                }
+                return text;
+            } catch (error) {
+                console.error("Error fetching merger news:", error);
+                displayError(`Failed to fetch merger news: ${error.message}`);
+                return '';
+            }
+        }
+
+        // Parse M&A entities from mergerNews (strict format)
+        function parseMAEntities(mergerNews) {
+            if (!mergerNews) return [];
+            // Each line: - Company Name - ACQUIRED - 2020
+            return mergerNews.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.startsWith('- '))
+                .map(line => {
+                    // Remove leading '- ', then split by ' - '
+                    const parts = line.substring(2).split(' - ');
+                    return parts[0]?.trim();
+                })
+                .filter(Boolean);
+        }
+
+        // function addDebugLog(promptName, response) {
+        //     debugLogs.push({ promptName, response });
+        //     renderDebugPanel();
+        // }
+
+        // function renderDebugPanel() {
+        //     if (!DEBUG) return;
+        //     let panel = document.getElementById('debug-panel');
+        //     if (!panel) {
+        //         panel = document.createElement('div');
+        //         panel.id = 'debug-panel';
+        //         panel.style = 'background:#222;color:#fff;padding:1em;margin:1em 0;max-width:900px;overflow-x:auto;font-size:0.98em;border-radius:8px;';
+        //         document.body.insertBefore(panel, document.body.firstChild);
+        //     }
+        //     panel.innerHTML = `<h3 style='margin-top:0;color:#ffc107;'>Debug API Responses</h3>` + debugLogs.map(log => {
+        //         let pretty;
+        //         if (typeof log.response === 'string') {
+        //             pretty = `<pre style='background:#111;color:#ffc107;padding:0.5em 1em;border-radius:4px;'>${log.response.replace(/</g,'&lt;')}</pre>`;
+        //         } else {
+        //             pretty = `<pre style='background:#111;color:#ffc107;padding:0.5em 1em;border-radius:4px;'>${JSON.stringify(log.response, null, 2)}</pre>`;
+        //         }
+        //         // If this is mergerNews, show parsed entities
+        //         let extra = '';
+        //         if (log.promptName === 'mergerNews') {
+        //             extra = `<div style='color:#0ff;margin:0.5em 0 0.5em 0;'><strong>Parsed M&A Entities:</strong><ul style='margin:0 0 0 1.5em;padding:0;'>${maEntities.map(e => `<li>${e}</li>`).join('')}</ul></div>`;
+        //         }
+        //         return `<div style='margin-bottom:1.5em;'><strong style='color:#0ff;'>${log.promptName}</strong>${pretty}${extra}</div>`;
+        //     }).join('');
+        // }
+
+        async function generateAndSaveInitialVersion(createNew = false) {
+            if (!projectName) {
+                displayError("A project name is required to start a new hierarchy.");
+                resetUI();
+                return;
+            }
+            try {
+                resetUI(false);
+                loader.style.display = 'block';
+                loader.textContent = 'Step 1 of 5: Identifying parent company...';
+                const l0FinderPrompt = `
+                    You are a corporate structure expert tasked with identifying the ultimate L0 parent company for a given entity. The L0 parent is the top-level public corporation, group, or independent entity that owns or represents the entity in question. Follow these strict rules to ensure accuracy:
+                    1. **Check for Independence**:
+                        - If the entity is independent, employee-owned, or part of a cooperative structure, it should be its own L0 parent company. Do not assume a parent unless there is clear evidence of ownership.
+                        - Example: Graybar Electric Company is an employee-owned company and should be its own L0 parent, not a subsidiary of another company like WESCO International, Inc.
+                    2. **Verify Ownership**:
+                        - Only identify a parent company if there is clear evidence of ownership, such as an acquisition, merger, or public subsidiary status as of June 2025.
+                        - Avoid assuming a parent based on industry overlap or partnerships. For example, Graybar and WESCO International, Inc. are both in the electrical distribution industry, but Graybar is independent and not owned by WESCO.
+                    3. **Use Location for Context**:
+                        - Use the provided location to confirm the entity's identity and ownership structure. Normalize the location name using these mappings:
+                            - "USA" or "United States" or "U.S.A." → "US"
+                            - "United Kingdom" → "UK"
+                            - "India" → "IN"
+                            - "China" → "CN"
+                            - "Japan" → "JP"
+                            - Other country names should remain as provided unless a standard two-letter code is commonly used.
+                        - For example, if the location is "United States", normalize it to "US".
+                    4. **Handle Name Variants**:
+                        - Normalize entity names to account for typos or variations (e.g., "Greybar" should be treated as "Graybar Electric Company").
+                    5. **Default to Entity Itself if Uncertain**:
+                        - If no clear parent is found or the entity appears to be independent, return the entity itself as the L0 parent.
+
+                    ### Task:
+                    Based on the entity "${entityName}" located in "${entityLocation}", identify its ultimate L0 parent company (the top-level public corporation, group, or independent entity).
+                    
+                    Respond with ONLY a single, valid JSON object with one key, "l0_company_name".
+                    
+                    ### Examples:
+                    - Input: "Anixter, Glenview, IL, USA"
+                    - Output: { "l0_company_name": "WESCO International, Inc." }
+                    - Input: "Amazon India, Bengaluru, India"
+                    - Output: { "l0_company_name": "Amazon, Inc." }
+                    - Input: "Greybar, St. Louis, United States"
+                    - Output: { "l0_company_name": "Graybar Electric Company" }
+                `;
+                const l0Result = await makeApiCall(l0FinderPrompt);
+                // addDebugLog('l0FinderPrompt', l0Result);
+                l0CompanyName = l0Result.l0_company_name;
+                loader.textContent = 'Step 2 of 5: Fetching mergers and acquisitions news...';
+                // Fetch merger news for both L0 and entityName
+                const mergerNewsL0 = await fetchMergerNews(l0CompanyName);
+                // addDebugLog('mergerNews (L0)', mergerNewsL0);
+                const mergerNewsEntity = await fetchMergerNews(entityName);
+                // addDebugLog('mergerNews (Entity)', mergerNewsEntity);
+                // Combine and deduplicate
+                const allMergerNews = [mergerNewsL0, mergerNewsEntity].filter(Boolean).join('\n');
+                // addDebugLog('mergerNews (Combined)', allMergerNews);
+                mergerNews = allMergerNews;
+                maEntities = Array.from(new Set([
+                    ...parseMAEntities(mergerNewsL0),
+                    ...parseMAEntities(mergerNewsEntity)
+                ]));
+                loader.textContent = 'Step 3 of 5: Generating initial hierarchy...';
+                const scoutPrompt = `
+                    You are a world-class business analyst AI. Your primary function is to meticulously map the complete corporate structure of a given company. Your results MUST be maximally comprehensive and granular.
+
+                    ### HIERARCHY DEFINITIONS (Strict)
+                    - **L0 (Company):** The top‐level brand or group name.
+                    - **L1 (Global):** The ultimate parent company, a major international joint venture, or a distinct global brand/division.
+                    - **L2 (Domestic):** The highest-level legal entity within one country or a major region.
+                    - **L3 (Parent):** A regional/functional head office, a specific manufacturing plant, or a major subsidiary.
+                    - **L4 (Child / Leaf Node):** The most granular level. This includes specific local branches, operational units, sales offices, R&D centers, or even uniquely identified sites (e.g., "Amazon Fulfillment Center - Madrid"). This is the "leaf node" level you must strive to uncover.
+
+                    ### KNOWLEDGE BASE (Mergers and Acquisitions):
+                    Below is the relevant information about mergers and acquisitions involving ${l0CompanyName} and ${entityName}:
+                    ${mergerNews}
+                    Use this information to ensure all relevant subsidiaries, acquired entities, or joint ventures are included in the hierarchy, with accurate parent-child relationships.
+                    
+                    ---
+                    ### ADDITIONAL INSTRUCTION:
+                    For every entity in the hierarchy that is involved in a merger or acquisition (as listed above), add a boolean property 'isMA: true' to its object in the JSON array. This property MUST persist in all future versions and feedback-based modifications.
+
+                    ---
+                    ### GROUND TRUTH EXAMPLES
+                    These examples are non-negotiable models of the logic you must replicate.
+
+                    #### GROUND TRUTH 1: Hyundai Motor Group (For JVs and Structure)
+                    [
+                        { "level": "L0", "entityName": "Hyundai Motor Group", "location": "Global", "mappedParent": "N/A" },
+                        { "level": "L1", "entityName": "Hyundai Motor Company", "location": "Seoul, South Korea", "mappedParent": "Hyundai Motor Group (L0)" },
+                        { "level": "L1", "entityName": "Beijing Hyundai Motor Company", "location": "Beijing, China", "mappedParent": "Hyundai Motor Group (L0)" },
+                        { "level": "L2", "entityName": "Hyundai Motor Americas", "location": "Valley, US", "mappedParent": "Hyundai Motor Company (L1)" },
+                        { "level": "L2", "entityName": "Hyundai Motor Group (China) Ltd", "location": "Beijing, China", "mappedParent": "Hyundai Motor Company (L1)" },
+                        { "level": "L3", "entityName": "Hyundai Motor Manufacturing Alabama LLC", "location": "Montgomery, US", "mappedParent": "Hyundai Motor Americas (L2)" },
+                        { "level": "L3", "entityName": "Hyundai Motor Technology & Engineering Center (China) Ltd", "location": "Shandong, China", "mappedParent": "Hyundai Motor Group (China) Ltd (L2)" },
+                        { "level": "L4", "entityName": "Hyundai Mobis of Alabama", "location": "Montgomery, US", "mappedParent": "Hyundai Motor Manufacturing Alabama LLC (L3)" },
+                        { "level": "L4", "entityName": "Hyundai Motor Company R&D Center (China) Ltd", "location": "Shanghai, China", "mappedParent": "Hyundai Motor Technology & Engineering Center (China) Ltd (L3)" }
+                    ]
+
+                    #### GROUND TRUTH 2: "CARLTON BATES" Logic (For Granularity)
+                    - **RULE:** If a parent has 20 children, list all 20. Do not aggregate. This is the model for L4 comprehensiveness.
+
+                    #### GROUND TRUTH 3: "HP Inc." Logic (For Brand Divisions)
+                    - **RULE:** A single L0 can have multiple, distinct L1 entities.
+
+                    #### GROUND TRUTH 4: "WESCO" Logic (For Acquisitions)
+                    - **RULE:** For a company like WESCO, acquired company hierarchies (like EECOL) must also be included and mapped correctly.
+
+                    ---
+                    ### HIERARCHY GENERATION RULES
+
+                    #### 1. THE NON-NEGOTIABLE HIERARCHY RULE (Applies to L1-L3)
+                    For **every single entity** you identify at levels L1, L2, and L3, you **MUST** treat it as a potential parent and perform an exhaustive search for its children. Do not terminate a branch prematurely.
+
+                    #### 2. THE L4 DEEP DIVE RULE (Most Critical for Comprehensiveness)
+                    When you identify an **L3 entity** you must perform a final, focused "deep dive" search for its L4 children (operational units, local branches, specific sites), limiting to a maximum of 10 entities per L3 unless explicitly required by the target entity.
+
+                    #### 3. THE THUMB RULE (Hierarchy Integrity)
+                    The parent-child relationships must be strictly sequential: L0 is the parent of L1, L1 of L2, L2 of L3, and L3 of L4. An L1 cannot be the direct parent of an L3.
+
+                    ---
+                    ### YOUR TASK
+                    For the company "${l0CompanyName}", generate the most comprehensive hierarchy possible by applying ALL rules and ground truth logic, incorporating the knowledge base provided above.
+                    
+                    **Internal Thought Process:**
+                    1. Identify L0.
+                    2. Find all L1s (brands, parent companies, major JVs, key acquisitions).
+                    3. For EACH L1, find all its L2 children.
+                    4. For EACH L2, find all its L3 children (covering all countries and regions).
+                    5. **L4 Deep Dive:** For EACH L3 found, apply the "L4 DEEP DIVE RULE" and relentlessly search for all its specific L4 children.
+                    6. Assemble the complete, ultra-granular list into the final JSON.
+
+                    ### FINAL OUTPUT INSTRUCTIONS
+                    Your entire response MUST BE a single JSON Array. Each object must have these keys: "level", "entityName", "location", "mappedParent". Do not output any other text.
+                `;
+                const initialData = await makeApiCall(scoutPrompt);
+                // addDebugLog('scoutPrompt', initialData);
+                loader.textContent = 'Step 4 of 5: Verifying and highlighting entry...';
+                const validatorPrompt = `
+                    You are a data validation and enhancement AI. Below is a JSON array representing a company hierarchy and a "target entity".
+                    
+                    Your task is to return a modified version of the complete JSON array that meets these requirements:
+                    1. Find the object in the array that most closely matches the "target entity". Add a new key-value pair to that specific object: "highlight": true. **This property MUST be present for the target entity, even if it was already present. Do NOT omit it.**
+                    2. If, after a thorough check, the "target entity" is NOT present in the JSON array, you MUST perform a full "Contextual Hierarchy Injection":
+                        a. **Trace and Inject Parents:** Identify the direct parent of the target entity. If that parent is also missing, find *its* parent, and so on, until you reach an existing entity in the hierarchy. Add all these missing parents.
+                        b. **Inject Target Entity:** Insert the target entity itself, ensure its 'mappedParent' is correct, and add "highlight": true to it.
+                        c. **Expand Surrounding Context:** For the newly added target entity AND for each of its newly added parents, you must build out their context:
+                            i. **Find and Add Siblings:** Perform an exhaustive search for all their *other* direct children (i.e., the siblings of the target and the siblings of its parents) and add them to the hierarchy.
+                            ii. **Expand All Children Deeply:** For every child entity you've just added (the target, its children, and all its siblings), you must perform a recursive "deep dive" search for *their* children down to the most granular L4 level. Ensure every branch in this newly injected context is fully expanded.
+
+                    **Note**: Add more hierarchy elements related to the country of the target entity. Add country-specific entities from L1 to L4.
+                    
+                    Return ONLY the final, complete, and valid JSON array. Do not add any other text. Ensure to add as many entities as possible for every level related to the target entity. **The target entity must always have 'highlight': true.**
+
+                    ### HIERARCHY DATA:
+                    ${JSON.stringify(initialData)}
+
+                    ### TARGET ENTITY:
+                    - Name: "${entityName}"
+                    - Location: "${entityLocation}"
+
+                    ADDITIONAL INSTRUCTION: For every entity in the array that is involved in a merger or acquisition (as indicated by the 'isMA' property), ensure that 'isMA: true' is present and persists in all future versions.
+                `;
+                const finalHierarchy = await makeApiCall(validatorPrompt);
+                // addDebugLog('validatorPrompt', finalHierarchy);
+                loader.textContent = 'Step 5 of 5: Saving initial draft (v0)...';
+                const response = await fetch(`${BACKEND_URL}/api/hierarchies`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userInput: { company: entityName, location: entityLocation },
+                        data: finalHierarchy,
+                        projectName: projectName,
+                        createNew: createNew
+                    })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save initial draft to backend.');
+                }
+                const result = await response.json();
+                hierarchyData = result.data.data;
+                initialHierarchyData = [...hierarchyData];
+                currentHierarchyId = result.metadata.id;
+                currentVersionNumber = result.metadata.version_number;
+                isHierarchyApproved = false;
+                isHierarchyArchived = false;
+                resetUI();
+                updateUIForHierarchy();
+                displaySuccess(`Initial draft (v0) for project "${projectName}" generated successfully.`);
+            } catch (error) {
+                console.error("Error in generateAndSaveInitialVersion:", error);
+                displayError(`Failed to generate hierarchy: ${error.message}`, error);
+                resetUI();
+            }
+        }
+
+        async function handleFeedback() {
+            const feedback = document.getElementById('feedbackInput').value.trim();
+            if (!feedback) {
+                displayError("Please enter feedback to create a new version.");
+                return;
+            }
+
+            resetUI(false);
+            loader.style.display = 'block';
+            loader.textContent = 'Processing feedback and creating new version...';
+            feedbackSection.style.display = 'none';
+            approveBtn.style.display = 'none';
+
+            try {
+                loader.textContent = 'Generating new hierarchy based on feedback...';
+                
+                const regenerationPrompt = `
+                    You are a world-class business analyst AI. Your task is to refine a corporate hierarchy based on user feedback.
+                    You will be given the CURRENT hierarchy and the USER'S FEEDBACK.
+                    Your goal is to return a NEW, COMPLETE, and VALID JSON array that incorporates the requested changes.
+
+                    - If the user asks to add something, add it and its parent/child context.
+                    - If the user asks to remove something, remove it from the structure.
+                    - If the user asks to correct something, make the correction.
+                    - Ensure all parent-child relationships ("mappedParent") remain correct in the new structure.
+                    - The object with "highlight": true should remain, unless the feedback specifically asks to change the target entity.
+
+                    Return ONLY the final, complete, and valid JSON array. Do not add any other text.
+
+                    ### CURRENT HIERARCHY DATA:
+                    ${JSON.stringify(hierarchyData)}
+
+                    ### USER FEEDBACK TO INCORPORATE:
+                    "${feedback}"
+                `;
+
+                const newHierarchyData = await makeApiCall(regenerationPrompt);
+
+                const comparedData = compareHierarchies(initialHierarchyData, newHierarchyData);
+
+                loader.textContent = 'Saving new version...';
+                const response = await fetch(`${BACKEND_URL}/api/hierarchies/${currentHierarchyId}/versions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: newHierarchyData,
+                        userFeedback: feedback
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save new version to backend.');
+                }
+                
+                const result = await response.json();
+                hierarchyData = comparedData;
+                currentHierarchyId = result.metadata.id;
+                currentVersionNumber = result.metadata.version_number;
+                isHierarchyApproved = false;
+                isHierarchyArchived = false;
+
+                resetUI();
+                updateUIForHierarchy();
+                document.getElementById('feedbackInput').value = '';
+                displaySuccess(`New version (v${currentVersionNumber}) created successfully for project "${projectName}".`);
+
+            } catch (error) {
+                console.error("Error handling feedback:", error);
+                displayError(`Failed to process feedback: ${error.message}`, error);
+                resetUI();
+                updateUIForHierarchy();
+            }
+        }
+        
+        async function handleApprove() {
+            resetUI(false);
+            loader.style.display = 'block';
+            loader.textContent = 'Approving hierarchy...';
+            
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/hierarchies/${currentHierarchyId}/approve`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to approve hierarchy on backend.');
+                }
+
+                const result = await response.json();
+                isHierarchyApproved = true;
+                isHierarchyArchived = false;
+                currentVersionNumber = result.version_number;
+                
+                hierarchyData = hierarchyData.map(item => {
+                    const { changeType, ...rest } = item;
+                    return rest;
+                });
+                
+                resetUI();
+                updateUIForHierarchy();
+                displaySuccess(`Hierarchy for project "${projectName}" has been approved!`);
+
+            } catch(error) {
+                console.error("Error approving hierarchy:", error);
+                displayError(`Failed to approve hierarchy: ${error.message}`, error);
+                resetUI();
+                updateUIForHierarchy();
+            }
+        }
+        
+        async function makeApiCall(promptText) {
+            const response = await fetch(GEMINI_API_URL, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: promptText }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        temperature: 0.0,
+                        maxOutputTokens: 16384,
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Gemini API request failed: ${errorText}`);
+            }
+
+            const data = await response.json();
+            if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                throw new Error("Invalid response structure from Gemini API.");
+            }
+
+            const rawText = data.candidates[0].content.parts[0].text;
+            let jsonString = "";
+            const markdownJsonStart = rawText.indexOf('```json');
+            const markdownEnd = rawText.lastIndexOf('```');
+
+            if (markdownJsonStart !== -1 && markdownEnd > markdownJsonStart) {
+                jsonString = rawText.substring(markdownJsonStart + 7, markdownEnd).trim();
+            } else {
+                const firstBracket = rawText.indexOf('[');
+                const firstBrace = rawText.indexOf('{');
+                let startIndex = -1;
+                if (firstBracket === -1 && firstBrace === -1) throw new Error(`Could not find a valid JSON object or array in the API response.`);
+                if (firstBracket === -1) startIndex = firstBrace;
+                else if (firstBrace === -1) startIndex = firstBracket;
+                else startIndex = Math.min(firstBracket, firstBrace);
+                const lastBracket = rawText.lastIndexOf(']');
+                const lastBrace = rawText.lastIndexOf('}');
+                const endIndex = Math.max(lastBracket, lastBrace);
+                if (endIndex > startIndex) jsonString = rawText.substring(startIndex, endIndex + 1);
+                else throw new Error(`Could not properly extract JSON from the response.`);
+            }
+
+            try {
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("Failed to parse JSON from API:", jsonString, e);
+                throw new Error(`API returned malformed JSON. ${e.message}`);
+            }
+        }
+
+        function downloadCSV() {
+            try {
+                if (!hierarchyData || hierarchyData.length === 0) {
+                    throw new Error("No data available to download.");
+                }
+                const headers = ["Level", "Entity Name", "Location", "Mapped Parent", "Is Highlighted"];
+                const sortedData = [...hierarchyData].sort((a, b) => {
+                    const levelA = parseInt(a.level.substring(1));
+                    const levelB = parseInt(b.level.substring(1));
+                    if (levelA !== levelB) return levelA - levelB;
+                    return a.entityName.localeCompare(b.entityName);
+                });
+                const csvRows = [headers.join(',')];
+                sortedData.forEach(row => {
+                    const values = [row.level, row.entityName, row.location, row.mappedParent, row.highlight ? 'Yes' : 'No'];
+                    const escaped = values.map(v => {
+                        const str = String(v || '');
+                        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                            return `"${str.replace(/"/g, '""')}"`;
+                        }
+                        return str;
+                    });
+                    csvRows.push(escaped.join(','));
+                });
+
+                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                const fileName = `${projectName.replace(/\s+/g, '_')}_${entityName.replace(/\s+/g, '_')}_v${currentVersionNumber}.csv`;
+                link.setAttribute("download", fileName);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                displayError(`Failed to download CSV: ${error.message}`);
+            }
+        }
+
+        function getQueryParam(name) {
+            const url = new URL(window.location.href);
+            return url.searchParams.get(name);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            generateBtn.addEventListener('click', getCompanyHierarchy);
+            submitFeedbackBtn.addEventListener('click', handleFeedback);
+            approveBtn.addEventListener('click', handleApprove);
+            document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
+            document.getElementById('showAllHierarchiesBtn').addEventListener('click', () => {
+                window.location.href = 'all_hierarchies.html';
+            });
+            const tableViewBtn = document.getElementById('tableViewBtn');
+            const treeViewBtn = document.getElementById('treeViewBtn');
+            const tableDiv = document.getElementById('results');
+            const treeDiv = document.getElementById('tree-container');
+            tableViewBtn.addEventListener('click', () => {
+                tableDiv.style.display = 'block';
+                treeDiv.style.display = 'none';
+                tableViewBtn.classList.add('active');
+                treeViewBtn.classList.remove('active');
+            });
+            treeViewBtn.addEventListener('click', () => {
+                tableDiv.style.display = 'none';
+                treeDiv.style.display = 'block';
+                treeViewBtn.classList.add('active');
+                tableViewBtn.classList.remove('active');
+            });
+            const hierarchyId = getQueryParam('hierarchyId');
+            const status = getQueryParam('status');
+            if (hierarchyId) {
+                loadHierarchy(hierarchyId).then(() => {
+                    if (status === 'approved') {
+                        isHierarchyApproved = true;
+                        isHierarchyArchived = false;
+                        updateUIForHierarchy();
+                    } else if (status === 'archived') {
+                        isHierarchyArchived = true;
+                        isHierarchyApproved = false;
+                        updateUIForHierarchy();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hierarchy Viewer</title>
+    <style>
+        :root {
+            --primary-blue: #0d2344;
+            --accent-cyan: #00bcf2;
+            --light-gray: #f8f9fa;
+            --medium-gray: #e9ecef;
+            --dark-gray: #495057;
+            --text-color: #212529;
+            --white: #ffffff;
+            --border-radius: 6px;
+            --highlight-bg: #e0f7ff;
+            --added-bg: #d4edda;
+            --removed-bg: #f8d7da;
+            --added-border: #28a745;
+            --removed-border: #dc3545;
+            --success-bg: #d4edda;
+            --success-border: #28a745;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            background-color: var(--light-gray);
+            color: var(--text-color);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: var(--white);
+            padding: 2rem 2.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            color: var(--primary-blue);
+            text-align: center;
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background-color: var(--accent-cyan);
+            color: var(--white);
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        .tab-button:hover {
+            background-color: #00a8d9;
+        }
+
+        .tab-button:active {
+            transform: translateY(1px);
+        }
+
+        .tab-button.active {
+            background-color: var(--primary-blue);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            font-size: 1rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(0, 188, 242, 0.2);
+        }
+
+        .company-block {
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+        }
+
+        .company-header {
+            background-color: var(--light-gray);
+            padding: 0.75rem 1rem;
+            width: 100%;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .company-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .company-content {
+            padding: 1rem;
+            display: none;
+        }
+
+        .company-content.active {
+            display: block;
+        }
+
+        .hierarchy-card {
+            background-color: var(--white);
+            border: 1px solid var(--medium-gray);
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .hierarchy-card-content {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .view-button,
+        .edit-button {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--medium-gray);
+            background-color: var(--white);
+            color: var(--primary-blue);
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .view-button:hover,
+        .edit-button:hover {
+            background-color: var(--medium-gray);
+        }
+
+        .chevron {
+            transition: transform 0.3s;
+        }
+
+        .chevron.rotated {
+            transform: rotate(180deg);
+        }
+
+        .error-message {
+            color: #D32F2F;
+            background-color: #FFEBEE;
+            border: 1px solid #D32F2F;
+            padding: 1rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .error-message .dismiss-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #D32F2F;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .error-message .dismiss-btn:hover {
+            color: #b71c1c;
+        }
+
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #fff;
+            border-radius: 10px;
+            max-width: 800px;
+            width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2rem 2.5rem 1.5rem 2.5rem;
+            position: relative;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: #888;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .modal-close:hover {
+            color: #d32f2f;
+        }
+        .ma-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .ma-spinner {
+            border: 4px solid #e9ecef;
+            border-top: 4px solid #00bcf2;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 0.5em;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <button onclick="window.location.href='index.html'"
+        style="margin-bottom: 1.5rem; padding: 0.75rem 1.5rem; background-color: #0d2344; color: #fff; border: none; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer;">←
+        Back</button>
+        <h1>Hierarchy Viewer</h1>
+        <div class="tabs">
+            <button class="tab-button active" id="approvedTab" onclick="switchTab('approved')">Approved</button>
+            <button class="tab-button" id="draftTab" onclick="switchTab('draft')">In Draft</button>
+        </div>
+        <input type="text" class="search-input" placeholder="Search by company or location..." oninput="filterData()">
+        <div id="message-container"></div>
+        <div id="hierarchies-list"></div>
+    </div>
+
+    <div id="hierarchy-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">✕</button>
+            <div id="modal-loader" class="ma-loader" style="display:none; text-align:center; margin:2em 0;">
+                <div class="ma-spinner"></div>
+                <div style="margin-top:0.7em;color:#0d2344;font-size:1.08em;">Checking for M&amp;A updates...</div>
+            </div>
+            <div id="modal-error" class="error-message" style="display:none;"></div>
+            <div id="modal-hierarchy"></div>
+        </div>
+    </div>
+
+    <script>
+        let groupedData = [];
+        let searchTerm = '';
+        let currentTab = 'approved';
+        let companyFilter = '';
+        const BACKEND_URL = 'http://54.84.76.100:5002';
+
+        function getQueryParam(name) {
+            const url = new URL(window.location.href);
+            return url.searchParams.get(name);
+        }
+
+        async function fetchHierarchies() {
+            const messageContainer = document.getElementById('message-container');
+            messageContainer.innerHTML = '';
+            try {
+                const res = await fetch(`${BACKEND_URL}/api/hierarchies/grouped`);
+                if (!res.ok) throw new Error('Failed to fetch hierarchies');
+                groupedData = await res.json();
+                // Apply company filter if present
+                companyFilter = getQueryParam('company')?.toLowerCase() || '';
+                renderHierarchies();
+            } catch (error) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-message';
+                errorDiv.innerHTML = `<strong>Error:</strong> ${error.message}<button class="dismiss-btn" onclick="this.parentElement.remove()">✕</button>`;
+                messageContainer.appendChild(errorDiv);
+            }
+        }
+        fetchHierarchies();
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('approvedTab').classList.toggle('active', tab === 'approved');
+            document.getElementById('draftTab').classList.toggle('active', tab === 'draft');
+            renderHierarchies();
+        }
+
+        function filterData() {
+            searchTerm = document.querySelector('.search-input').value.toLowerCase();
+            renderHierarchies();
+        }
+
+        function renderHierarchies() {
+            const listDiv = document.getElementById('hierarchies-list');
+            listDiv.innerHTML = '';
+            let filtered = groupedData.filter(group => {
+                // Company filter from URL
+                const matchesCompany = companyFilter ? (group.company && group.company.toLowerCase() === companyFilter) : true;
+                // Search box filter
+                const matchesSearch = (group.company && group.company.toLowerCase().includes(searchTerm)) ||
+                    (group.location && group.location.toLowerCase().includes(searchTerm));
+                return matchesCompany && matchesSearch;
+            });
+            if (filtered.length === 0) {
+                listDiv.innerHTML = '<p class="text-gray-500">No hierarchies found.</p>';
+                return;
+            }
+            filtered.forEach((group, idx) => {
+                // Group versions by root_hierarchy_id (or id if null)
+                const chains = {};
+                group.versions.forEach(v => {
+                    const chainId = v.root_hierarchy_id || v.id;
+                    if (!chains[chainId]) chains[chainId] = [];
+                    chains[chainId].push(v);
+                });
+                // For each chain, find the latest version for the current tab
+                Object.values(chains).forEach((chain, chainIdx) => {
+                    // Sort by version_number descending
+                    chain.sort((a, b) => b.version_number - a.version_number);
+                    let mainVersion = null;
+                    let previousVersions = [];
+                    if (currentTab === 'approved') {
+                        mainVersion = chain.find(v => v.status === 'approved');
+                        if (mainVersion) {
+                            previousVersions = chain.filter(v => v.status === 'archived' && v.version_number < mainVersion.version_number);
+                        }
+                    } else {
+                        // Only show the latest in-draft version as the main card
+                        const inDraftVersions = chain.filter(v => v.status === 'in-draft');
+                        if (inDraftVersions.length > 0) {
+                            // Always pick the one with the highest version_number
+                            mainVersion = inDraftVersions[0];
+                            previousVersions = chain.filter(v => v.version_number < mainVersion.version_number);
+                        }
+                    }
+                    if (!mainVersion) return;
+                    const block = document.createElement('div');
+                    block.className = 'company-block';
+                    block.innerHTML = `
+                        <button class="company-header" onclick="toggleContent(this, '${idx}-${chainIdx}')">
+                            <span><strong>${group.company || 'Unknown Company'}</strong> <span style="color: #888; font-weight:400;">(${group.location || 'Unknown Location'})</span></strong><br><span style="color: #555; font-size:0.98em;">Project: <strong>${group.projectName || 'N/A'}</strong></span></span>
+                            <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+                        </button>
+                        <div class="company-content" id="content-${idx}-${chainIdx}">
+                            <div class="hierarchy-card">
+                                <div class="hierarchy-card-content">
+                                    <p class="font-semibold text-lg">Version: ${mainVersion.version || 'N/A'} <span style="font-size:0.9em; color:${mainVersion.status === 'approved' ? '#28a745' : mainVersion.status === 'in-draft' ? '#00bcf2' : '#888'};">[${mainVersion.status}]</span></p>
+                                    <p class="text-sm text-gray-500">Last Updated: ${mainVersion.updated_at ? new Date(mainVersion.updated_at).toLocaleString() : '-'}</p>
+                                    <p class="text-sm text-gray-500">Created: ${mainVersion.created_at ? new Date(mainVersion.created_at).toLocaleString() : '-'}</p>
+                                    <div class="action-buttons">
+                                        <button class="view-button" onclick="viewHierarchy(${mainVersion.id}, '${mainVersion.status}')">View</button>
+                                        ${mainVersion.has_ma_update ? `<span class="ma-update-badge" style="background:#ffc107;color:#222;padding:0.2em 0.7em;border-radius:10px;font-size:0.9em;margin-left:0.5em;">New M&A!</span>` : ''}
+                                        <button class="edit-button" onclick="checkMAUpdate(${mainVersion.id}, '${group.company}')">Check M&A Updates</button>
+                                    </div>
+                                </div>
+                            </div>
+                            ${previousVersions.length > 0 ? `
+                            <details>
+                                <summary style="cursor:pointer; color:var(--primary-blue); font-weight:500;">Show Previous Versions (${previousVersions.length})</summary>
+                                ${previousVersions.map(version => `
+                                    <div class="hierarchy-card" style="margin-left:1rem;">
+                                        <div class="hierarchy-card-content">
+                                            <p class="font-semibold text-lg">Version: ${version.version || 'N/A'} <span style="font-size:0.9em; color:${version.status === 'approved' ? '#28a745' : version.status === 'in-draft' ? '#00bcf2' : '#888'};">[${version.status}]</span></p>
+                                            <p class="text-sm text-gray-500">Last Updated: ${version.updated_at ? new Date(version.updated_at).toLocaleString() : '-'}</p>
+                                            <p class="text-sm text-gray-500">Created: ${version.created_at ? new Date(version.created_at).toLocaleString() : '-'}</p>
+                                            <div class="action-buttons">
+                                                <button class="view-button" onclick="viewHierarchy(${version.id}, '${version.status}')">View</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </details>
+                            ` : ''}
+                        </div>
+                    `;
+                    listDiv.appendChild(block);
+                });
+            });
+        }
+
+        function toggleContent(button, index) {
+            const content = document.getElementById(`content-${index}`);
+            const chevron = button.querySelector('.chevron');
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                chevron.classList.remove('rotated');
+            } else {
+                content.classList.add('active');
+                chevron.classList.add('rotated');
+            }
+        }
+
+        function viewHierarchy(id, status) {
+            window.location.href = `index.html?hierarchyId=${id}&status=${status}`;
+        }
+
+        function closeModal() {
+            document.getElementById('hierarchy-modal').style.display = 'none';
+        }
+
+        function checkMAUpdate(hierarchyId, companyName) {
+            // Show loader in modal
+            document.getElementById('modal-hierarchy').innerHTML = '';
+            document.getElementById('modal-error').style.display = 'none';
+            document.getElementById('modal-loader').style.display = 'block';
+            document.getElementById('hierarchy-modal').style.display = 'flex';
+            fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}`)
+                .then(res => res.json())
+                .then(hierarchy => {
+                    // Robust normalization function
+                    const normalize = s => s.trim().toLowerCase().replace(/[^a-z0-9]/gi, '');
+                    // Get all entity names in the current hierarchy (case-insensitive, normalized)
+                    const allEntityNames = new Set();
+                    let hierarchyArr = hierarchy.data && Array.isArray(hierarchy.data[0]?.data) ? hierarchy.data[0].data : [];
+                    hierarchyArr.forEach(e => {
+                        if (e.entityName) allEntityNames.add(normalize(e.entityName));
+                    });
+                    console.log("All entity names in hierarchy:", Array.from(allEntityNames));
+                    // Now, iteratively fetch new M&A entities from LLM
+                    iterativeFetchMAEntities(companyName, allEntityNames, 3, normalize).then(newEntities => {
+                        // Hide loader
+                        document.getElementById('modal-loader').style.display = 'none';
+                        console.log("New entities detected:", newEntities);
+                        if (newEntities.length === 0) {
+                            showModal('No new M&A entities found for this hierarchy.');
+                        } else {
+                            // Add new entities to the hierarchy at the correct level/parent
+                            const l0 = hierarchyArr.find(e => e.level === "L0");
+                            const l0Name = l0 ? l0.entityName : companyName;
+                            const addedEntities = [];
+                            newEntities.forEach(entityRaw => {
+                                // Try to parse parent/level from LLM response (e.g., 'Blinkit (2022)')
+                                let entityName = entityRaw;
+                                let yearMatch = entityRaw.match(/(.+?) \((\d{4})\)/);
+                                if (yearMatch) entityName = yearMatch[1].trim();
+                                // Check if already present (shouldn't be, but double check)
+                                if (allEntityNames.has(normalize(entityName))) return;
+                                // Default: add as L1 under L0 (acquired by Zomato)
+                                let level = "L1";
+                                let mappedParent = l0 ? `${l0.entityName} (L0)` : l0Name;
+                                hierarchyArr.push({
+                                    level,
+                                    entityName,
+                                    location: "",
+                                    mappedParent,
+                                    isMA: true
+                                });
+                                addedEntities.push(entityName);
+                            });
+                            // Show modal with Approve and Cancel buttons
+                            showModal(`
+                                <div>Added new M&A entities to the hierarchy:</div>
+                                <ul style='background:#f8f9fa;padding:1em;border-radius:6px;'>${addedEntities.map(e => `<li>${e}</li>`).join('')}</ul>
+                                <div style='display:flex;gap:1em;margin-top:1em;'>
+                                    <button id='approveMAButton' style='background:#28a745;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Approve</button>
+                                    <button id='cancelMAButton' style='background:#dc3545;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Cancel</button>
+                                </div>
+                                <div style='margin-top:0.7em;font-size:0.97em;color:#888;'>Please approve to add these entities to the hierarchy.</div>
+                            `);
+                            // Add event listeners for Approve/Cancel
+                            setTimeout(() => {
+                                document.getElementById('approveMAButton').onclick = function() {
+                                    fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}/ma-update`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ newMAData: hierarchyArr })
+                                    })
+                                    .then(res => res.json())
+                                    .then(() => {
+                                        showModal(`M&A entities approved and added to the hierarchy.<br>Please reload to see changes.`);
+                                        setTimeout(() => closeModal(), 2000);
+                                    });
+                                };
+                                document.getElementById('cancelMAButton').onclick = function() {
+                                    closeModal();
+                                };
+                            }, 100);
+                        }
+                    });
+                });
+        }
+
+        async function iterativeFetchMAEntities(companyName, allEntityNames, maxTries = 3, normalize = s => s) {
+            let allEntities = new Set();
+            const today = new Date().toISOString().split('T')[0];
+            let prompts = [
+                `You are a financial data extraction agent. Your task is to use Google Search to identify every company that has been involved in a merger or acquisition (M&A) event with "${companyName}" (either as acquirer or as target) from the year the company was founded up to ${today}.
+
+Instructions:
+- Use only information from the search results. Do NOT rely on your training data or prior knowledge.
+- For each M&A event, extract ONLY the name of the other company involved (not "${companyName}") and its location (city and country, if available).
+- Output STRICTLY a plain list: each line should contain only the name of one company involved in an M&A event with "${companyName}" and its location (if available), in the format: [Company Name] - [Location if available]. No years, no URLs, no explanations, no commentary, no numbering, no bullet points, no duplicate names, and no extra formatting.
+- Do NOT return any historical context, explanations, or information about M&A waves or trends. Return only company names and their locations involved in M&A events with "${companyName}".
+- Include all relevant M&A events from the company's founding to today. Be exhaustive and up-to-date.
+- Exclude subsidiaries, internal reorganizations, or irrelevant entities. Only include direct, public M&A events.
+- If no M&A events are found, return a single line with the word: None
+
+STRICT OUTPUT FORMAT EXAMPLES:
+If "${companyName}" acquired "Alpha Corp" (New York, USA) and "Beta Inc" (London, UK), and merged with "Gamma LLC" (Berlin, Germany), output:
+Alpha Corp - New York, USA
+Beta Inc - London, UK
+Gamma LLC - Berlin, Germany
+
+If no events are found, output:
+None
+`,
+                `List only the names of companies that have been acquired or merged with ${companyName} (as acquirer or target) from founding to present. No years, no explanations, no context, no bullets, no numbering, no M&A wave info. Only company names, one per line. If none, return 'None'.`,
+                `Return a plain list of company names (one per line, no extra text, no years, no explanations, no bullets, no numbering, no context, no M&A wave info) that have been involved in M&A events with ${companyName} from founding to today. If none, return 'None'.`
+            ];
+            for (let i = 0; i < maxTries; i++) {
+                const prompt = prompts[i % prompts.length];
+                const result = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDA4wNR6GaAxrOqATPnh2mO4gpZuItUOEw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        tools: [{ google_search_retrieval: {} }],
+                        generationConfig: { responseMimeType: 'text/plain', temperature: 0.0, maxOutputTokens: 4096 }
+                    })
+                })
+                .then(res => res.json())
+                .then(data => data.candidates?.[0]?.content?.parts?.[0]?.text || '');
+                console.log("LLM Response:", result);
+                // Parse entities from result
+                const entities = result.split('\n')
+                    .map(line => line.trim())
+                    .filter(line =>
+                        line.length > 0 &&
+                        !line.match(/\d{4}/) && // no years
+                        !line.includes(':')      // no explanations or context
+                    )
+                    .map(line => {
+                        // Remove leading bullets, asterisks, or numbering
+                        return line.replace(/^[-*\d.\s]+/, '').trim();
+                    })
+                    .filter(line => line.length > 0);
+                // Fuzzy/normalized deduplication
+                function normalizeName(name) {
+                    return name
+                        .toLowerCase()
+                        .replace(/\s*\(.*?\)\s*/g, '') // remove parentheses and content inside
+                        .replace(/[^a-z0-9]/g, '');   // remove non-alphanumeric chars
+                }
+                const seen = new Set();
+                entities.forEach(e => {
+                    const norm = normalizeName(e);
+                    if (!seen.has(norm)) {
+                        seen.add(norm);
+                        allEntities.add(e);
+                    }
+                });
+            }
+            // Filter out entities already present in the hierarchy (normalized)
+            function normalizeName(name) {
+                return name
+                    .toLowerCase()
+                    .replace(/\s*\(.*?\)\s*/g, '')
+                    .replace(/[^a-z0-9]/g, '');
+            }
+            const newEntities = Array.from(allEntities).filter(e => !allEntityNames.has(normalize(e)) && !allEntityNames.has(normalizeName(e)));
+            return newEntities;
+        }
+
+        function showModal(html) {
+            const modal = document.getElementById('hierarchy-modal');
+            const modalContent = modal.querySelector('.modal-content #modal-hierarchy');
+            modalContent.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+    </script>
+</body>
+
+</html>
