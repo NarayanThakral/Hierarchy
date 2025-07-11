@@ -7,7 +7,7 @@ const db = require('./db/database');
 
 const HOST = process.env.HOST ;
 const app = express();
-const PORT = process.env.PORT || 5002;  
+const PORT = process.env.PORT || 3002;  
 
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' }));

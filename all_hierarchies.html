@@ -284,13 +284,32 @@
         let searchTerm = '';
         let currentTab = 'approved';
         let companyFilter = '';
-        const BACKEND_URL = 'http://54.84.76.100:5002';
+        const BACKEND_URL = 'http://54.84.76.100:5002'
+        // const BACKEND_URL = 'http://localhost:3000';
+        const API_KEY = "AIzaSyAEL-W-gFG774r6Fd_1yq2EoxKlyZGVQAUd";
 
+        // =====================
+        // Utility Functions
+        // =====================
         function getQueryParam(name) {
             const url = new URL(window.location.href);
             return url.searchParams.get(name);
         }
 
+        function showModal(html) {
+            const modal = document.getElementById('hierarchy-modal');
+            const modalContent = modal.querySelector('.modal-content #modal-hierarchy');
+            modalContent.innerHTML = html;
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('hierarchy-modal').style.display = 'none';
+        }
+
+        // =====================
+        // Main Hierarchy UI Logic
+        // =====================
         async function fetchHierarchies() {
             const messageContainer = document.getElementById('message-container');
             messageContainer.innerHTML = '';
@@ -370,13 +389,13 @@
                     block.className = 'company-block';
                     block.innerHTML = `
                         <button class="company-header" onclick="toggleContent(this, '${idx}-${chainIdx}')">
-                            <span><strong>${group.company || 'Unknown Company'}</strong> <span style="color: #888; font-weight:400;">(${group.location || 'Unknown Location'})</span></strong><br><span style="color: #555; font-size:0.98em;">Project: <strong>${group.projectName || 'N/A'}</strong></span></span>
+                            <span><strong>${group.company || ''}</strong> <span style="color: #888; font-weight:400;">(${group.location || ''})</span></strong><br><span style="color: #555; font-size:0.98em;">Project: <strong>${group.projectName || ''}</strong></span></span>
                             <span class="chevron"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
                         </button>
                         <div class="company-content" id="content-${idx}-${chainIdx}">
                             <div class="hierarchy-card">
                                 <div class="hierarchy-card-content">
-                                    <p class="font-semibold text-lg">Version: ${mainVersion.version || 'N/A'} <span style="font-size:0.9em; color:${mainVersion.status === 'approved' ? '#28a745' : mainVersion.status === 'in-draft' ? '#00bcf2' : '#888'};">[${mainVersion.status}]</span></p>
+                                    <p class="font-semibold text-lg">Version: ${mainVersion.version || ''} <span style="font-size:0.9em; color:${mainVersion.status === 'approved' ? '#28a745' : mainVersion.status === 'in-draft' ? '#00bcf2' : '#888'};">[${mainVersion.status}]</span></p>
                                     <p class="text-sm text-gray-500">Last Updated: ${mainVersion.updated_at ? new Date(mainVersion.updated_at).toLocaleString() : '-'}</p>
                                     <p class="text-sm text-gray-500">Created: ${mainVersion.created_at ? new Date(mainVersion.created_at).toLocaleString() : '-'}</p>
                                     <div class="action-buttons">
@@ -392,7 +411,7 @@
                                 ${previousVersions.map(version => `
                                     <div class="hierarchy-card" style="margin-left:1rem;">
                                         <div class="hierarchy-card-content">
-                                            <p class="font-semibold text-lg">Version: ${version.version || 'N/A'} <span style="font-size:0.9em; color:${version.status === 'approved' ? '#28a745' : version.status === 'in-draft' ? '#00bcf2' : '#888'};">[${version.status}]</span></p>
+                                            <p class="font-semibold text-lg">Version: ${version.version || ''} <span style="font-size:0.9em; color:${version.status === 'approved' ? '#28a745' : version.status === 'in-draft' ? '#00bcf2' : '#888'};">[${version.status}]</span></p>
                                             <p class="text-sm text-gray-500">Last Updated: ${version.updated_at ? new Date(version.updated_at).toLocaleString() : '-'}</p>
                                             <p class="text-sm text-gray-500">Created: ${version.created_at ? new Date(version.created_at).toLocaleString() : '-'}</p>
                                             <div class="action-buttons">
@@ -426,10 +445,9 @@
             window.location.href = `index.html?hierarchyId=${id}&status=${status}`;
         }
 
-        function closeModal() {
-            document.getElementById('hierarchy-modal').style.display = 'none';
-        }
-
+        // =====================
+        // M&A Update Logic (Two-Track Approach)
+        // =====================
         function checkMAUpdate(hierarchyId, companyName) {
             // Show loader in modal
             document.getElementById('modal-hierarchy').innerHTML = '';
@@ -438,166 +456,169 @@
             document.getElementById('hierarchy-modal').style.display = 'flex';
             fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}`)
                 .then(res => res.json())
-                .then(hierarchy => {
-                    // Robust normalization function
-                    const normalize = s => s.trim().toLowerCase().replace(/[^a-z0-9]/gi, '');
-                    // Get all entity names in the current hierarchy (case-insensitive, normalized)
-                    const allEntityNames = new Set();
+                .then(async hierarchy => {
+                    // Step 1: Extract all entities from the current hierarchy
+                    const normalize = s => (s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
                     let hierarchyArr = hierarchy.data && Array.isArray(hierarchy.data[0]?.data) ? hierarchy.data[0].data : [];
-                    hierarchyArr.forEach(e => {
-                        if (e.entityName) allEntityNames.add(normalize(e.entityName));
-                    });
-                    console.log("All entity names in hierarchy:", Array.from(allEntityNames));
-                    // Now, iteratively fetch new M&A entities from LLM
-                    iterativeFetchMAEntities(companyName, allEntityNames, 3, normalize).then(newEntities => {
-                        // Hide loader
-                        document.getElementById('modal-loader').style.display = 'none';
-                        console.log("New entities detected:", newEntities);
-                        if (newEntities.length === 0) {
-                            showModal('No new M&A entities found for this hierarchy.');
+                    const hierarchyEntities = new Set(hierarchyArr.map(e => normalize(e.entityName) + '|' + (e.location || '')));
+                    // Step 2: Call LLM to extract M&A companies (strict prompt)
+                    const today = new Date().toISOString().split('T')[0];
+                    const maCompaniesPrompt = `
+                        You are a specialized M&A data extraction agent. Your task is to use Google Search to identify ONLY companies that have been involved in TRUE mergers and acquisitions with "${companyName}" (either as acquirer or target) from the year the company was founded up to ${today}.
+
+                        STRICT M&A DEFINITION - Include ONLY these transaction types:
+                        - Complete acquisitions (100% ownership transfer)
+                        - Majority acquisitions (>50% ownership transfer)
+                        - Full mergers (two companies combining into one)
+                        - Asset acquisitions (purchasing entire business units/divisions)
+                        - Subsidiary acquisitions (buying entire subsidiaries)
+
+                        EXCLUDE these transaction types:
+                        - Strategic partnerships or alliances
+                        - Joint ventures or collaborations
+                        - Minority investments or stakes
+                        - Licensing deals or agreements
+                        - Distribution partnerships
+                        - Technology partnerships
+                        - Supply chain agreements
+                        - Investment rounds or funding
+                        - Business partnerships without ownership transfer
+
+                        For each TRUE M&A transaction, extract ONLY the name of the other company involved (not "${companyName}") and its location (city and country, if available).
+                        - LOCATION REQUIREMENTS: Only include COMPLETE locations with both city and country (e.g., "New York, USA", "London, UK"). If location is incomplete, unclear, or unavailable, leave the location field completely empty after the tab.
+
+                        Output STRICTLY a plain list: each line should contain only the name of one company involved in a TRUE M&A transaction with "${companyName}" and its location, separated by a tab character (\t), in the format: [Company Name]\t[Location]. 
+                        No dashes, no years, no URLs, no explanations, no commentary, no numbering, no bullet points, no duplicate names, no extra formatting, and no partial locations.
+
+                        If no TRUE M&A events are found, output: None
+                    `;
+                    // Use Gemini API directly (as in index.html)
+                    const maCompaniesRaw = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: maCompaniesPrompt }] }],
+                            tools: [{ google_search_retrieval: {} }],
+                            generationConfig: { responseMimeType: 'text/plain', temperature: 0.0, maxOutputTokens: 4096 }
+                        })
+                    }).then(res => res.json()).then(data => data.candidates?.[0]?.content?.parts?.[0]?.text || '');
+                    // Parse M&A companies from LLM output
+                    let maCompanies = [];
+                    if (typeof maCompaniesRaw === 'string') {
+                        maCompanies = maCompaniesRaw.split('\n').map(line => {
+                            const [entityName, location] = line.split('\t');
+                            return { entityName: entityName?.trim(), location: location?.trim() };
+                        }).filter(e => e.entityName);
+                    }
+                    // Step 3: Cross-validate and build missing M&A list
+                    const presentMA = [];
+                    const missingMA = [];
+                    const hierarchyEntityNames = new Set(hierarchyArr.map(e => normalize(e.entityName)));
+                    maCompanies.forEach(ma => {
+                        const key = normalize(ma.entityName);
+                        if (hierarchyEntityNames.has(key)) {
+                            presentMA.push(ma);
                         } else {
-                            // Add new entities to the hierarchy at the correct level/parent
-                            const l0 = hierarchyArr.find(e => e.level === "L0");
-                            const l0Name = l0 ? l0.entityName : companyName;
-                            const addedEntities = [];
-                            newEntities.forEach(entityRaw => {
-                                // Try to parse parent/level from LLM response (e.g., 'Blinkit (2022)')
-                                let entityName = entityRaw;
-                                let yearMatch = entityRaw.match(/(.+?) \((\d{4})\)/);
-                                if (yearMatch) entityName = yearMatch[1].trim();
-                                // Check if already present (shouldn't be, but double check)
-                                if (allEntityNames.has(normalize(entityName))) return;
-                                // Default: add as L1 under L0 (acquired by Zomato)
-                                let level = "L1";
-                                let mappedParent = l0 ? `${l0.entityName} (L0)` : l0Name;
-                                hierarchyArr.push({
-                                    level,
-                                    entityName,
-                                    location: "",
-                                    mappedParent,
-                                    isMA: true
-                                });
-                                addedEntities.push(entityName);
-                            });
-                            // Show modal with Approve and Cancel buttons
-                            showModal(`
-                                <div>Added new M&A entities to the hierarchy:</div>
-                                <ul style='background:#f8f9fa;padding:1em;border-radius:6px;'>${addedEntities.map(e => `<li>${e}</li>`).join('')}</ul>
-                                <div style='display:flex;gap:1em;margin-top:1em;'>
-                                    <button id='approveMAButton' style='background:#28a745;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Approve</button>
-                                    <button id='cancelMAButton' style='background:#dc3545;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Cancel</button>
-                                </div>
-                                <div style='margin-top:0.7em;font-size:0.97em;color:#888;'>Please approve to add these entities to the hierarchy.</div>
-                            `);
-                            // Add event listeners for Approve/Cancel
-                            setTimeout(() => {
-                                document.getElementById('approveMAButton').onclick = function() {
-                                    fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}/ma-update`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ newMAData: hierarchyArr })
-                                    })
-                                    .then(res => res.json())
-                                    .then(() => {
-                                        showModal(`M&A entities approved and added to the hierarchy.<br>Please reload to see changes.`);
-                                        setTimeout(() => closeModal(), 2000);
-                                    });
-                                };
-                                document.getElementById('cancelMAButton').onclick = function() {
-                                    closeModal();
-                                };
-                            }, 100);
+                            missingMA.push(ma);
                         }
                     });
-                });
-        }
+                    // Tag present M&A companies in the hierarchy
+                    const hierarchyWithMATags = hierarchyArr.map(e => {
+                        const isMA = presentMA.some(ma => normalize(ma.entityName) === normalize(e.entityName));
+                        return isMA ? { ...e, isMA: true } : e;
+                    });
+                    // Step 4: Integrate missing M&A companies (LLM call)
+                    let finalHierarchy = hierarchyWithMATags;
+                    if (missingMA.length > 0) {
+                        const integrationPrompt = `
+                            You are a corporate structure integration expert. Your task is to take an existing company hierarchy (as a JSON array) and a list of M&A companies (with locations), and integrate all M&A companies into the hierarchy.
 
-        async function iterativeFetchMAEntities(companyName, allEntityNames, maxTries = 3, normalize = s => s) {
-            let allEntities = new Set();
-            const today = new Date().toISOString().split('T')[0];
-            let prompts = [
-                `You are a financial data extraction agent. Your task is to use Google Search to identify every company that has been involved in a merger or acquisition (M&A) event with "${companyName}" (either as acquirer or as target) from the year the company was founded up to ${today}.
+                            - Do NOT remove or modify any existing entities from the initial hierarchy.
+                            - Only add missing M&A companies (with isMA: true) at the correct level and parent.
+                            - If an M&A company is already present, just tag it with isMA: true.
+                            - Ensure there are NO duplicate entities (normalize by name/location/level).
+                            - The final output must contain ALL original entities, plus any new M&A companies, with correct parent/child/sibling relationships.
 
-Instructions:
-- Use only information from the search results. Do NOT rely on your training data or prior knowledge.
-- For each M&A event, extract ONLY the name of the other company involved (not "${companyName}") and its location (city and country, if available).
-- Output STRICTLY a plain list: each line should contain only the name of one company involved in an M&A event with "${companyName}" and its location (if available), in the format: [Company Name] - [Location if available]. No years, no URLs, no explanations, no commentary, no numbering, no bullet points, no duplicate names, and no extra formatting.
-- Do NOT return any historical context, explanations, or information about M&A waves or trends. Return only company names and their locations involved in M&A events with "${companyName}".
-- Include all relevant M&A events from the company's founding to today. Be exhaustive and up-to-date.
-- Exclude subsidiaries, internal reorganizations, or irrelevant entities. Only include direct, public M&A events.
-- If no M&A events are found, return a single line with the word: None
+                            Return ONLY the final, complete, deduplicated JSON array, with all M&A companies tagged as "isMA": true.
 
-STRICT OUTPUT FORMAT EXAMPLES:
-If "${companyName}" acquired "Alpha Corp" (New York, USA) and "Beta Inc" (London, UK), and merged with "Gamma LLC" (Berlin, Germany), output:
-Alpha Corp - New York, USA
-Beta Inc - London, UK
-Gamma LLC - Berlin, Germany
+                            ### EXISTING HIERARCHY:
+                            ${JSON.stringify(hierarchyWithMATags)}
 
-If no events are found, output:
-None
-`,
-                `List only the names of companies that have been acquired or merged with ${companyName} (as acquirer or target) from founding to present. No years, no explanations, no context, no bullets, no numbering, no M&A wave info. Only company names, one per line. If none, return 'None'.`,
-                `Return a plain list of company names (one per line, no extra text, no years, no explanations, no bullets, no numbering, no context, no M&A wave info) that have been involved in M&A events with ${companyName} from founding to today. If none, return 'None'.`
-            ];
-            for (let i = 0; i < maxTries; i++) {
-                const prompt = prompts[i % prompts.length];
-                const result = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDA4wNR6GaAxrOqATPnh2mO4gpZuItUOEwd', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        tools: [{ google_search_retrieval: {} }],
-                        generationConfig: { responseMimeType: 'text/plain', temperature: 0.0, maxOutputTokens: 4096 }
-                    })
-                })
-                .then(res => res.json())
-                .then(data => data.candidates?.[0]?.content?.parts?.[0]?.text || '');
-                console.log("LLM Response:", result);
-                // Parse entities from result
-                const entities = result.split('\n')
-                    .map(line => line.trim())
-                    .filter(line =>
-                        line.length > 0 &&
-                        !line.match(/\d{4}/) && // no years
-                        !line.includes(':')      // no explanations or context
-                    )
-                    .map(line => {
-                        // Remove leading bullets, asterisks, or numbering
-                        return line.replace(/^[-*\d.\s]+/, '').trim();
-                    })
-                    .filter(line => line.length > 0);
-                // Fuzzy/normalized deduplication
-                function normalizeName(name) {
-                    return name
-                        .toLowerCase()
-                        .replace(/\s*\(.*?\)\s*/g, '') // remove parentheses and content inside
-                        .replace(/[^a-z0-9]/g, '');   // remove non-alphanumeric chars
-                }
-                const seen = new Set();
-                entities.forEach(e => {
-                    const norm = normalizeName(e);
-                    if (!seen.has(norm)) {
-                        seen.add(norm);
-                        allEntities.add(e);
+                            ### M&A COMPANIES TO INTEGRATE:
+                            ${JSON.stringify(missingMA)}
+                        `;
+                        // Use Gemini API directly
+                        finalHierarchy = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contents: [{ parts: [{ text: integrationPrompt }] }],
+                                generationConfig: { responseMimeType: 'application/json', temperature: 0.0, maxOutputTokens: 4096 }
+                            })
+                        }).then(res => res.json()).then(data => {
+                            let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                            try {
+                                return JSON.parse(text);
+                            } catch {
+                                // Try to extract JSON from markdown
+                                const firstBracket = text.indexOf('[');
+                                const lastBracket = text.lastIndexOf(']');
+                                if (firstBracket !== -1 && lastBracket !== -1) {
+                                    return JSON.parse(text.substring(firstBracket, lastBracket + 1));
+                                }
+                                return hierarchyWithMATags;
+                            }
+                        });
                     }
+                    // Defensive merge: ensure all original entities are present
+                    const initialKeys = new Set(hierarchyWithMATags.map(e => normalize(e.entityName) + '|' + (e.location || '')));
+                    const llmKeys = new Set(finalHierarchy.map(e => normalize(e.entityName) + '|' + (e.location || '')));
+                    hierarchyWithMATags.forEach(e => {
+                        const key = normalize(e.entityName) + '|' + (e.location || '');
+                        if (!llmKeys.has(key)) {
+                            finalHierarchy.push(e);
+                        }
+                    });
+                    // Hide loader
+                    document.getElementById('modal-loader').style.display = 'none';
+                    // Only show M&A companies in the popup that are not present in the current hierarchy (by name only)
+                    const maOnly = finalHierarchy.filter(e => e.isMA && !hierarchyEntityNames.has(normalize(e.entityName)));
+                    let popupContent = '';
+                    if (maOnly.length === 0) {
+                        popupContent = `<div style='color:#888;font-size:1.1em;margin:1em 0;'>No new M&A entities are available.</div>`;
+                    } else {
+                        popupContent = `<div style='max-height:300px;overflow:auto;background:#f8f9fa;padding:1em;border-radius:6px;margin-top:1em;'>
+                            <pre style='font-size:0.95em;'>${JSON.stringify(maOnly, null, 2)}</pre>
+                        </div>`;
+                    }
+                    showModal(`
+                        <div>New M&A companies (not present in the current hierarchy):</div>
+                        ${popupContent}
+                        <div style='display:flex;gap:1em;margin-top:1em;'>
+                            <button id='approveMAButton' style='background:#28a745;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Approve</button>
+                            <button id='cancelMAButton' style='background:#dc3545;color:#fff;padding:0.5em 1.5em;border:none;border-radius:6px;font-size:1em;cursor:pointer;'>Cancel</button>
+                        </div>
+                        <div style='margin-top:0.7em;font-size:0.97em;color:#888;'>Please approve to update the hierarchy with these new M&A companies.</div>
+                    `);
+                    // Add event listeners for Approve/Cancel
+                    setTimeout(() => {
+                        document.getElementById('approveMAButton').onclick = function() {
+                            fetch(`${BACKEND_URL}/api/hierarchies/${hierarchyId}/ma-update`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ newMAData: finalHierarchy })
+                            })
+                            .then(res => res.json())
+                            .then(() => {
+                                showModal(`M&A companies integrated and hierarchy updated.<br>Please reload to see changes.`);
+                                setTimeout(() => closeModal(), 2000);
+                            });
+                        };
+                        document.getElementById('cancelMAButton').onclick = function() {
+                            closeModal();
+                        };
+                    }, 100);
                 });
-            }
-            // Filter out entities already present in the hierarchy (normalized)
-            function normalizeName(name) {
-                return name
-                    .toLowerCase()
-                    .replace(/\s*\(.*?\)\s*/g, '')
-                    .replace(/[^a-z0-9]/g, '');
-            }
-            const newEntities = Array.from(allEntities).filter(e => !allEntityNames.has(normalize(e)) && !allEntityNames.has(normalizeName(e)));
-            return newEntities;
-        }
-
-        function showModal(html) {
-            const modal = document.getElementById('hierarchy-modal');
-            const modalContent = modal.querySelector('.modal-content #modal-hierarchy');
-            modalContent.innerHTML = html;
-            modal.style.display = 'flex';
         }
     </script>
 </body>

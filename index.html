@@ -25,6 +25,8 @@
             --removed-bg: #f8d7da;
             --added-border: #28a745;
             --removed-border: #dc3545;
+            --warning-bg: #fff3cd;
+            --warning-border: #ffeeba;
         }
 
         body { 
@@ -173,6 +175,11 @@
             vertical-align: top; 
         }
 
+        td[contenteditable="true"] {
+            background-color: #fefde8;
+            outline-color: var(--accent-cyan);
+        }
+
         thead th { 
             background-color: var(--accent-cyan); 
             color: var(--white); 
@@ -280,16 +287,25 @@
         #tree-container { font-size: 0.95em; }
         #tree-container ul { list-style-type: none; padding-left: 20px; position: relative; }
         #tree-container ul ul { margin-left: 15px; }
-        #tree-container li { margin: 10px 0; position: relative; padding-left: 25px; }
-        #tree-container li::before, #tree-container li::after { content: ''; position: absolute; left: 0; border-color: var(--medium-gray); }
-        #tree-container li::before { border-left: 1px solid var(--medium-gray); height: 100%; top: 0; width: 1px; }
+        #tree-container li {position: relative; padding-left: 25px; }
+        #tree-container li::before, #tree-container li::after { content: ''; position: absolute; left: 0; border-color: #000; }
+        #tree-container li::before { border-left: 1px solid #000; height: 100%; top: 0; width: 1px; }
         #tree-container li:last-child::before { height: 22px; }
-        #tree-container li::after { border-top: 1px solid var(--medium-gray); height: 1px; top: 22px; width: 20px; }
-        .tree-node { background-color: #f8f9fa; padding: 8px 12px; border-radius: var(--border-radius); border: 1px solid var(--medium-gray); display: inline-block; transition: all 0.2s; }
+        #tree-container li::after { border-top: 1px solid #000; height: 1px; top: 22px; width: 20px; }
+        
+        .tree-node-wrapper { display: flex; align-items: center; gap: 8px; }
+        .tree-node { margin: 10px; background-color: #f8f9fa; padding: 8px 12px; border-radius: var(--border-radius); border: 1px solid var(--medium-gray); display: inline-block; transition: all 0.2s; }
         .tree-node strong { color: var(--primary-blue); font-weight: 600; }
         .tree-node .badge { background-color: var(--accent-cyan); color: var(--white); padding: 3px 8px; font-size: 0.75em; border-radius: 10px; font-weight: bold; display: inline-block; margin-left: 8px; vertical-align: middle; }
         .tree-node .tree-location { display: block; font-style: italic; color: var(--dark-gray); font-size: 0.9em; margin-top: 4px; }
         
+        .tree-node [contenteditable="true"] {
+    
+             outline-color: var(--accent-cyan);
+             padding: 2px 4px;
+             border-radius: 3px;
+        }
+
         .highlighted-row { background-color: var(--highlight-bg) !important; font-weight: 700; }
         .highlighted-row td { color: var(--primary-blue); }
         .highlighted-node { border-color: var(--primary-blue) !important; background-color: var(--highlight-bg) !important; box-shadow: 0 0 8px rgba(13, 35, 68, 0.3); border-width: 2px; }
@@ -351,6 +367,56 @@
             background-color: #fff3cd !important;
             border: 2px solid #ffc107 !important;
         }
+
+        #unsaved-changes-bar {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--warning-bg);
+            border: 1px solid var(--warning-border);
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 1001;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translate(-50%, 100px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        #unsaved-changes-bar span {
+            font-weight: 500;
+        }
+        #unsaved-changes-bar .button {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
+        #saveChangesBtn { background-color: var(--success-border); }
+        #discardChangesBtn { background-color: var(--removed-border); }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            color: var(--removed-border);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 5px;
+            line-height: 1;
+            font-weight: bold;
+        }
+        .remove-btn:hover {
+            color: #a71d2a;
+        }
+        th.actions-column, td.actions-column {
+            width: 60px;
+            text-align: center;
+        }
+
     </style>
 </head>
 <body>
@@ -376,6 +442,9 @@
         <div class="view-toggle">
             <button id="tableViewBtn" class="active">Table View</button>
             <button id="treeViewBtn">Tree View</button>
+            <button id="editModeBtn">Edit</button>
+            <button id="undoBtn" style="display: none;">Undo</button>
+            <button id="redoBtn" style="display: none;">Redo</button>
             <button id="downloadBtn" title="Download CSV">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
             </button>
@@ -415,24 +484,35 @@
         </div>
     </div>
 
+    <div id="unsaved-changes-bar" style="display: none;">
+        <span>You have unsaved changes.</span>
+        <button id="saveChangesBtn" class="button">Save Changes</button>
+        <button id="discardChangesBtn" class="button">Discard</button>
+    </div>
+
 
 
     <script>
-        const API_KEY = "AIzaSyDA4wNR6GaAxrOqATPnh2mO4gpZuItUOEwd"; // Ensure this matches your actual API key
+        const API_KEY = "AIzaSyAEL-W-gFG774r6Fd_1yq2EoxKlyZGVQAUd"; // Ensure this matches your actual API key
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
         const GEMINI_NEWS_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
         const BACKEND_URL = 'http://54.84.76.100:5002';
-        
+        // const BACKEND_URL = 'http://localhost:3000';
         let hierarchyData = [];
-        let initialHierarchyData = [];
+        let originalHierarchyData = [];
+        
+        // History for Undo/Redo
+        let history = [];
+        let historyIndex = -1;
+
+        let hasUnsavedChanges = false;
+        let isEditMode = false;
         let entityName = '';
         let entityLocation = '';
         let projectName = '';
         let l0CompanyName = '';
         let mergerNews = '';
         let maEntities = [];
-        // const DEBUG = true; // Set to false to hide debug panel
-        // let debugLogs = [];
 
         let currentHierarchyId = null; 
         let currentVersionNumber = 0;
@@ -449,6 +529,10 @@
         const tableContainer = document.getElementById('tableContainer');
         const treeContent = document.getElementById('treeContent');
         const messageContainers = document.getElementsByClassName('messageContainer');
+        const unsavedChangesBar = document.getElementById('unsaved-changes-bar');
+        const editModeBtn = document.getElementById('editModeBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
 
         function displayMessage(message, type = 'info', container) {
             const messageDiv = document.createElement('div');
@@ -493,22 +577,49 @@
             generateBtn.disabled = !enableGenerate;
             approveBtn.disabled = false;
             submitFeedbackBtn.disabled = false;
+            if (isEditMode) toggleEditMode(); // Turn off edit mode
+            hideUnsavedChangesBar();
         }
 
         function updateUIForHierarchy() {
-            renderGroupedTable(tableContainer);
-            renderTree(hierarchyData, treeContent);
+            renderViews();
             viewToggle.style.display = 'flex';
             const statusText = `Project: ${projectName} | Status: ${isHierarchyArchived ? 'Archived' : isHierarchyApproved ? 'Approved' : 'In Draft'} (Version ${currentVersionNumber}) | ID: ${currentHierarchyId}`;
             statusBar.textContent = statusText;
             statusBar.style.display = 'block';
-            if (isHierarchyApproved || isHierarchyArchived) {
-                feedbackSection.style.display = 'none';
-                approveBtn.style.display = 'none';
-                displaySuccess(`Viewing a ${isHierarchyArchived ? 'archived' : 'approved'} hierarchy. To make changes, start a new generation.`);
-            } else {
+            
+            const canEdit = !(isHierarchyApproved || isHierarchyArchived);
+            editModeBtn.style.display = canEdit ? 'inline-block' : 'none';
+            
+            if (canEdit) {
                 feedbackSection.style.display = 'block';
                 approveBtn.style.display = 'inline-block';
+            } else {
+                feedbackSection.style.display = 'none';
+                approveBtn.style.display = 'none';
+                if (isEditMode) toggleEditMode(); // Ensure edit mode is off
+                displaySuccess(`Viewing a ${isHierarchyArchived ? 'archived' : 'approved'} hierarchy. To make changes, start a new generation.`);
+            }
+        }
+
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            editModeBtn.classList.toggle('active', isEditMode);
+            editModeBtn.textContent = isEditMode ? 'Finish Editing' : 'Edit';
+            renderViews();
+            updateUndoRedoButtons();
+            if (!isEditMode && hasUnsavedChanges) {
+                showUnsavedChangesBar();
+            } else if (!isEditMode && !hasUnsavedChanges) {
+                hideUnsavedChangesBar();
+            }
+        }
+
+        function renderViews() {
+             if (document.getElementById('tableViewBtn').classList.contains('active')) {
+                renderGroupedTable(tableContainer);
+            } else {
+                renderTree(hierarchyData, treeContent);
             }
         }
 
@@ -539,6 +650,93 @@
             return [...unchanged, ...added, ...removed];
         }
 
+        function handleInlineEdit(index, field, value) {
+            if (!hierarchyData[index]) return;
+
+            const item = hierarchyData[index];
+            const originalValue = item[field];
+
+            if (originalValue === value) return; // No change, do nothing.
+
+            // Special handling for level changes to restructure the hierarchy
+            if (field === 'level') {
+                const oldLevel = item.level;
+                // Identifier used by children to find this item as a parent
+                const selfIdentifier = `${item.entityName} (${oldLevel})`;
+                const oldParentIdentifier = item.mappedParent;
+
+                // Update the item's level
+                item.level = value;
+
+                // If the level is changed to L0, it becomes a new root node
+                if (value.trim().toUpperCase() === 'L0') {
+                    item.mappedParent = 'N/A';
+                }
+
+                // Re-parent the direct children of the moved node
+                hierarchyData.forEach(child => {
+                    if (child.mappedParent === selfIdentifier) {
+                        // Assign the children to the moved node's original parent,
+                        // effectively making them siblings of their former parent.
+                        child.mappedParent = oldParentIdentifier;
+                    }
+                });
+
+            } else {
+                // For any other field, just update the value
+                item[field] = value;
+            }
+
+            // Record the change in history for undo/redo
+            pushToHistory(hierarchyData);
+            if (!hasUnsavedChanges) {
+                hasUnsavedChanges = true;
+                showUnsavedChangesBar();
+            }
+
+            // Re-render both table and tree views to reflect the structural change
+            renderViews();
+        }
+
+        function removeHierarchyItem(indexToRemove) {
+            const itemToRemove = hierarchyData[indexToRemove];
+            if (!itemToRemove) return;
+
+            const indicesToRemove = new Set([indexToRemove]);
+            
+            function findAndMarkDescendants(parentIdentifier) {
+                hierarchyData.forEach((item, index) => {
+                    if (item.mappedParent === parentIdentifier && !indicesToRemove.has(index)) {
+                        indicesToRemove.add(index);
+                        const childIdentifier = `${item.entityName} (${item.level})`;
+                        findAndMarkDescendants(childIdentifier);
+                    }
+                });
+            }
+
+            const parentIdentifier = `${itemToRemove.entityName} (${itemToRemove.level})`;
+            findAndMarkDescendants(parentIdentifier);
+
+            hierarchyData = hierarchyData.filter((_, index) => !indicesToRemove.has(index));
+            
+            pushToHistory(hierarchyData);
+
+            if (!hasUnsavedChanges) {
+                hasUnsavedChanges = true;
+                showUnsavedChangesBar();
+            }
+            renderViews();
+        }
+
+        function showUnsavedChangesBar() {
+            unsavedChangesBar.style.display = 'flex';
+        }
+
+        function hideUnsavedChangesBar() {
+            unsavedChangesBar.style.display = 'none';
+            hasUnsavedChanges = false;
+        }
+
         function renderGroupedTable(targetElement) {
             targetElement.innerHTML = '';
             if (!Array.isArray(hierarchyData) || hierarchyData.length === 0) { 
@@ -549,7 +747,12 @@
             const table = document.createElement('table');
             const thead = document.createElement('thead');
             const tbody = document.createElement('tbody');
-            thead.innerHTML = '<tr><th>Level</th><th>Entity Name</th><th>Location</th><th>Mapped Parent</th></tr>';
+            
+            let headerRow = '<tr><th>Level</th><th>Entity Name</th><th>Location</th><th>Mapped Parent</th>';
+            if(isEditMode) headerRow += '<th class="actions-column">Actions</th>';
+            headerRow += '</tr>';
+            thead.innerHTML = headerRow;
+
             table.appendChild(thead);
             
             const sortedData = [...hierarchyData].sort((a, b) => {
@@ -559,24 +762,22 @@
                 return a.entityName.localeCompare(b.entityName);
             });
 
-            sortedData.forEach(rowData => {
+            sortedData.forEach((rowData) => {
+                const originalIndex = hierarchyData.findIndex(item => item === rowData);
                 const tr = document.createElement('tr');
-                if (rowData.highlight) {
-                    tr.classList.add('highlighted-row');
-                }
-                if (rowData.isMA) {
-                    tr.classList.add('ma-highlighted-row');
-                }
-                if (rowData.changeType === 'added') {
-                    tr.classList.add('added-row');
-                } else if (rowData.changeType === 'removed') {
-                    tr.classList.add('removed-row');
-                }
+                tr.dataset.id = originalIndex;
+
+                if (rowData.highlight) tr.classList.add('highlighted-row');
+                if (rowData.isMA) tr.classList.add('ma-highlighted-row');
+                if (rowData.changeType === 'added') tr.classList.add('added-row');
+                else if (rowData.changeType === 'removed') tr.classList.add('removed-row');
+
                 tr.innerHTML = `
-                    <td>${rowData.level || ''}</td>
-                    <td>${rowData.entityName || ''}</td>
-                    <td>${rowData.location || ''}</td>
-                    <td>${rowData.mappedParent || ''}</td>
+                    <td onblur="handleInlineEdit(${originalIndex}, 'level', this.textContent)" contenteditable="${isEditMode}">${rowData.level || ''}</td>
+                    <td onblur="handleInlineEdit(${originalIndex}, 'entityName', this.textContent)" contenteditable="${isEditMode}">${rowData.entityName || ''}</td>
+                    <td onblur="handleInlineEdit(${originalIndex}, 'location', this.textContent)" contenteditable="${isEditMode}">${rowData.location || ''}</td>
+                    <td onblur="handleInlineEdit(${originalIndex}, 'mappedParent', this.textContent)" contenteditable="${isEditMode}">${rowData.mappedParent || ''}</td>
+                    ${isEditMode ? `<td class="actions-column"><button class="remove-btn" onclick="removeHierarchyItem(${originalIndex})">&times;</button></td>` : ''}
                 `;
                 tbody.appendChild(tr);
             });
@@ -590,12 +791,13 @@
             if (!Array.isArray(data) || data.length === 0) return;
 
             const dataMap = new Map();
-            data.forEach(item => dataMap.set(`${item.entityName} (${item.level})`, { ...item, children: [] }));
+            data.forEach((item, index) => dataMap.set(`${item.entityName} (${item.level})`, { ...item, originalIndex: index, children: [] }));
 
             const treeRoots = [];
             dataMap.forEach(item => {
                 if (item.mappedParent && dataMap.has(item.mappedParent)) {
-                    dataMap.get(item.mappedParent).children.push(item);
+                    const parent = dataMap.get(item.mappedParent);
+                    if(parent) parent.children.push(item);
                 } else {
                     treeRoots.push(item);
                 }
@@ -614,10 +816,14 @@
                     ].filter(Boolean).join(' ');
                     
                     html += `
-                        <li>
-                            <div class="${nodeClasses}">
-                                <strong>${node.entityName}</strong><span class="badge">${node.level}</span>
-                                <span class="tree-location">${node.location}</span>
+                        <li data-id="${node.originalIndex}">
+                            <div class="tree-node-wrapper">
+                                ${isEditMode ? `<button class="remove-btn" onclick="removeHierarchyItem(${node.originalIndex})">&times;</button>` : ''}
+                                <div class="${nodeClasses}">
+                                    <strong onblur="handleInlineEdit(${node.originalIndex}, 'entityName', this.textContent)" contenteditable="${isEditMode}">${node.entityName}</strong>
+                                    <span onblur="handleInlineEdit(${node.originalIndex}, 'level', this.textContent)" contenteditable="${isEditMode}" class="badge">${node.level}</span>
+                                    <span onblur="handleInlineEdit(${node.originalIndex}, 'location', this.textContent)" contenteditable="${isEditMode}" class="tree-location">${node.location}</span>
+                                </div>
                             </div>
                             ${createTreeHtml(node.children)}
                         </li>
@@ -627,6 +833,43 @@
                 return html;
             }
             targetElement.innerHTML = createTreeHtml(treeRoots);
+        }
+
+        function pushToHistory(data) {
+            history = history.slice(0, historyIndex + 1);
+            history.push(JSON.parse(JSON.stringify(data)));
+            historyIndex++;
+            updateUndoRedoButtons();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                hierarchyData = JSON.parse(JSON.stringify(history[historyIndex]));
+                renderViews();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                hierarchyData = JSON.parse(JSON.stringify(history[historyIndex]));
+                renderViews();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function updateUndoRedoButtons() {
+            if (isEditMode) {
+                undoBtn.style.display = 'inline-block';
+                redoBtn.style.display = 'inline-block';
+                undoBtn.disabled = historyIndex <= 0;
+                redoBtn.disabled = historyIndex >= history.length - 1;
+            } else {
+                undoBtn.style.display = 'none';
+                redoBtn.style.display = 'none';
+            }
         }
 
         async function fuzzyEntitySearch(entityName) {
@@ -776,12 +1019,16 @@
                 const result = await response.json();
                 
                 hierarchyData = result.data[0].data;
-                initialHierarchyData = [...hierarchyData];
+                originalHierarchyData = JSON.parse(JSON.stringify(hierarchyData));
                 currentHierarchyId = result.metadata.id;
                 currentVersionNumber = result.metadata.version_number;
                 isHierarchyApproved = result.metadata.status === 'approved';
                 isHierarchyArchived = result.metadata.status === 'archived';
                 projectName = result.metadata.project_name;
+                
+                history = [JSON.parse(JSON.stringify(hierarchyData))];
+                historyIndex = 0;
+                updateUndoRedoButtons();
                 
                 document.getElementById('entityName').value = result.metadata.user_input.company;
                 document.getElementById('entityLocation').value = result.metadata.user_input.location || '';
@@ -868,50 +1115,17 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
             }
         }
 
-        // Parse M&A entities from mergerNews (strict format)
         function parseMAEntities(mergerNews) {
             if (!mergerNews) return [];
-            // Each line: - Company Name - ACQUIRED - 2020
             return mergerNews.split('\n')
                 .map(line => line.trim())
                 .filter(line => line.startsWith('- '))
                 .map(line => {
-                    // Remove leading '- ', then split by ' - '
                     const parts = line.substring(2).split(' - ');
                     return parts[0]?.trim();
                 })
                 .filter(Boolean);
         }
-
-        // function addDebugLog(promptName, response) {
-        //     debugLogs.push({ promptName, response });
-        //     renderDebugPanel();
-        // }
-
-        // function renderDebugPanel() {
-        //     if (!DEBUG) return;
-        //     let panel = document.getElementById('debug-panel');
-        //     if (!panel) {
-        //         panel = document.createElement('div');
-        //         panel.id = 'debug-panel';
-        //         panel.style = 'background:#222;color:#fff;padding:1em;margin:1em 0;max-width:900px;overflow-x:auto;font-size:0.98em;border-radius:8px;';
-        //         document.body.insertBefore(panel, document.body.firstChild);
-        //     }
-        //     panel.innerHTML = `<h3 style='margin-top:0;color:#ffc107;'>Debug API Responses</h3>` + debugLogs.map(log => {
-        //         let pretty;
-        //         if (typeof log.response === 'string') {
-        //             pretty = `<pre style='background:#111;color:#ffc107;padding:0.5em 1em;border-radius:4px;'>${log.response.replace(/</g,'&lt;')}</pre>`;
-        //         } else {
-        //             pretty = `<pre style='background:#111;color:#ffc107;padding:0.5em 1em;border-radius:4px;'>${JSON.stringify(log.response, null, 2)}</pre>`;
-        //         }
-        //         // If this is mergerNews, show parsed entities
-        //         let extra = '';
-        //         if (log.promptName === 'mergerNews') {
-        //             extra = `<div style='color:#0ff;margin:0.5em 0 0.5em 0;'><strong>Parsed M&A Entities:</strong><ul style='margin:0 0 0 1.5em;padding:0;'>${maEntities.map(e => `<li>${e}</li>`).join('')}</ul></div>`;
-        //         }
-        //         return `<div style='margin-bottom:1.5em;'><strong style='color:#0ff;'>${log.promptName}</strong>${pretty}${extra}</div>`;
-        //     }).join('');
-        // }
 
         async function generateAndSaveInitialVersion(createNew = false) {
             if (!projectName) {
@@ -959,17 +1173,11 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                     - Output: { "l0_company_name": "Graybar Electric Company" }
                 `;
                 const l0Result = await makeApiCall(l0FinderPrompt);
-                // addDebugLog('l0FinderPrompt', l0Result);
                 l0CompanyName = l0Result.l0_company_name;
                 loader.textContent = 'Step 2 of 5: Fetching mergers and acquisitions news...';
-                // Fetch merger news for both L0 and entityName
                 const mergerNewsL0 = await fetchMergerNews(l0CompanyName);
-                // addDebugLog('mergerNews (L0)', mergerNewsL0);
                 const mergerNewsEntity = await fetchMergerNews(entityName);
-                // addDebugLog('mergerNews (Entity)', mergerNewsEntity);
-                // Combine and deduplicate
                 const allMergerNews = [mergerNewsL0, mergerNewsEntity].filter(Boolean).join('\n');
-                // addDebugLog('mergerNews (Combined)', allMergerNews);
                 mergerNews = allMergerNews;
                 maEntities = Array.from(new Set([
                     ...parseMAEntities(mergerNewsL0),
@@ -1049,7 +1257,6 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                     Your entire response MUST BE a single JSON Array. Each object must have these keys: "level", "entityName", "location", "mappedParent". Do not output any other text.
                 `;
                 const initialData = await makeApiCall(scoutPrompt);
-                // addDebugLog('scoutPrompt', initialData);
                 loader.textContent = 'Step 4 of 5: Verifying and highlighting entry...';
                 const validatorPrompt = `
                     You are a data validation and enhancement AI. Below is a JSON array representing a company hierarchy and a "target entity".
@@ -1077,7 +1284,6 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                     ADDITIONAL INSTRUCTION: For every entity in the array that is involved in a merger or acquisition (as indicated by the 'isMA' property), ensure that 'isMA: true' is present and persists in all future versions.
                 `;
                 const finalHierarchy = await makeApiCall(validatorPrompt);
-                // addDebugLog('validatorPrompt', finalHierarchy);
                 loader.textContent = 'Step 5 of 5: Saving initial draft (v0)...';
                 const response = await fetch(`${BACKEND_URL}/api/hierarchies`, {
                     method: 'POST',
@@ -1095,11 +1301,16 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                 }
                 const result = await response.json();
                 hierarchyData = result.data.data;
-                initialHierarchyData = [...hierarchyData];
+                originalHierarchyData = JSON.parse(JSON.stringify(hierarchyData));
                 currentHierarchyId = result.metadata.id;
                 currentVersionNumber = result.metadata.version_number;
                 isHierarchyApproved = false;
                 isHierarchyArchived = false;
+
+                history = [JSON.parse(JSON.stringify(hierarchyData))];
+                historyIndex = 0;
+                updateUndoRedoButtons();
+
                 resetUI();
                 updateUIForHierarchy();
                 displaySuccess(`Initial draft (v0) for project "${projectName}" generated successfully.`);
@@ -1111,6 +1322,10 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
         }
 
         async function handleFeedback() {
+            if (hasUnsavedChanges) {
+                displayError("Please save or discard your inline edits before submitting new feedback.");
+                return;
+            }
             const feedback = document.getElementById('feedbackInput').value.trim();
             if (!feedback) {
                 displayError("Please enter feedback to create a new version.");
@@ -1148,7 +1363,7 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
 
                 const newHierarchyData = await makeApiCall(regenerationPrompt);
 
-                const comparedData = compareHierarchies(initialHierarchyData, newHierarchyData);
+                const comparedData = compareHierarchies(originalHierarchyData, newHierarchyData);
 
                 loader.textContent = 'Saving new version...';
                 const response = await fetch(`${BACKEND_URL}/api/hierarchies/${currentHierarchyId}/versions`, {
@@ -1167,10 +1382,15 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                 
                 const result = await response.json();
                 hierarchyData = comparedData;
+                originalHierarchyData = JSON.parse(JSON.stringify(comparedData));
                 currentHierarchyId = result.metadata.id;
                 currentVersionNumber = result.metadata.version_number;
                 isHierarchyApproved = false;
                 isHierarchyArchived = false;
+
+                history = [JSON.parse(JSON.stringify(hierarchyData))];
+                historyIndex = 0;
+                updateUndoRedoButtons();
 
                 resetUI();
                 updateUIForHierarchy();
@@ -1184,8 +1404,71 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                 updateUIForHierarchy();
             }
         }
+
+        async function handleSaveChanges() {
+            resetUI(false);
+            loader.style.display = 'block';
+            loader.textContent = 'Saving changes as a new version...';
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/hierarchies/${currentHierarchyId}/versions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        data: hierarchyData,
+                        userFeedback: "Manual inline edits applied."
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save new version to backend.');
+                }
+                
+                const result = await response.json();
+                hierarchyData = result.data.data;
+                originalHierarchyData = JSON.parse(JSON.stringify(hierarchyData));
+                currentHierarchyId = result.metadata.id;
+                currentVersionNumber = result.metadata.version_number;
+                isHierarchyApproved = false;
+                isHierarchyArchived = false;
+
+                history = [JSON.parse(JSON.stringify(hierarchyData))];
+                historyIndex = 0;
+                updateUndoRedoButtons();
+
+                resetUI();
+                updateUIForHierarchy();
+                displaySuccess(`New version (v${currentVersionNumber}) created from your edits.`);
+
+            } catch (error) {
+                console.error("Error saving changes:", error);
+                displayError(`Failed to save changes: ${error.message}`, error);
+                resetUI();
+                updateUIForHierarchy();
+            }
+        }
+
+        function handleDiscardChanges() {
+            hierarchyData = JSON.parse(JSON.stringify(originalHierarchyData));
+            
+            history = [JSON.parse(JSON.stringify(originalHierarchyData))];
+            historyIndex = 0;
+            updateUndoRedoButtons();
+
+            hideUnsavedChangesBar();
+            if (isEditMode) {
+                toggleEditMode(); // Turn off edit mode
+            }
+            renderViews();
+            displayMessage("Your changes have been discarded.", "info");
+        }
         
         async function handleApprove() {
+            if (hasUnsavedChanges) {
+                displayError("You have unsaved changes. Please save or discard them before approving.");
+                return;
+            }
             resetUI(false);
             loader.style.display = 'block';
             loader.textContent = 'Approving hierarchy...';
@@ -1326,6 +1609,11 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
             generateBtn.addEventListener('click', getCompanyHierarchy);
             submitFeedbackBtn.addEventListener('click', handleFeedback);
             approveBtn.addEventListener('click', handleApprove);
+            editModeBtn.addEventListener('click', toggleEditMode);
+            undoBtn.addEventListener('click', undo);
+            redoBtn.addEventListener('click', redo);
+            document.getElementById('saveChangesBtn').addEventListener('click', handleSaveChanges);
+            document.getElementById('discardChangesBtn').addEventListener('click', handleDiscardChanges);
             document.getElementById('downloadBtn').addEventListener('click', downloadCSV);
             document.getElementById('showAllHierarchiesBtn').addEventListener('click', () => {
                 window.location.href = 'all_hierarchies.html';
@@ -1339,12 +1627,14 @@ You are a financial data extractor. Use Google Search to find ALL mergers and ac
                 treeDiv.style.display = 'none';
                 tableViewBtn.classList.add('active');
                 treeViewBtn.classList.remove('active');
+                renderGroupedTable(tableContainer);
             });
             treeViewBtn.addEventListener('click', () => {
                 tableDiv.style.display = 'none';
                 treeDiv.style.display = 'block';
                 treeViewBtn.classList.add('active');
                 tableViewBtn.classList.remove('active');
+                renderTree(hierarchyData, treeContent);
             });
             const hierarchyId = getQueryParam('hierarchyId');
             const status = getQueryParam('status');
